@@ -1,0 +1,26 @@
+# Default: text files use LF, auto-detect binary
+* text=auto eol=lf
+
+# Markdown explicitly LF
+*.md text eol=lf
+*.mdc text eol=lf
+
+# JSON / config explicitly LF
+*.json text eol=lf
+
+# Shell scripts must be LF
+*.sh text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+*.7z binary

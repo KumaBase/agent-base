@@ -1,0 +1,59 @@
+# secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials/
+secrets/
+*.secret.md
+
+# dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# build outputs
+dist/
+build/
+out/
+coverage/
+
+# OS / app
+.DS_Store
+Thumbs.db
+._*
+Icon?
+desktop.ini
+
+# IDE / editor configs (workspace-local)
+.idea/
+.vscode/
+
+# logs
+*.log
+logs/
+
+# temporary
+tmp/
+temp/
+.cache/
+*.tmp
+*.swp
+*.swo
+
+# archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# editor / agent local
+.cursor/local/
+.codex/local/
+.claude/local/
+.windsurf/local/
+*.local.md
