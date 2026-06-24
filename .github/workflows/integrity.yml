@@ -57,6 +57,14 @@ jobs:
           # json.sh を使って lock を読む（jq 不要）
           source core/updater/lib/json.sh
 
+          # 配布元リポジトリでは lock.json は version=null のプレースホルダ。
+          # セットアップ時に実 hash が生成されるため、ここでは検証をスキップする。
+          LOCK_VERSION="$(json_get_scalar "$LOCK" version)"
+          if [[ -z "$LOCK_VERSION" || "$LOCK_VERSION" == "null" ]]; then
+            echo "::notice::lock.json is a placeholder (version=null). Skipping managed_file_hashes verification (distribution source repo)."
+            exit 0
+          fi
+
           fail=0
           # managed_file_hashes をパスごとに出力
           while IFS=$'\t' read -r path expected; do
