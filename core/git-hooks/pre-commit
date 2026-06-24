@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# pre-commit - core/ 配下の変更を検知し、公式アップデート以外はブロック
+#
+# 有効化:
+#   git config core.hooksPath core/git-hooks
+#
+# 例外（許可）:
+#   1. コミットメッセージが "chore: update agent-base to v..." にマッチ
+#      かつ core/.agent-base-lock.json がステージされている
+#   2. コミットメッセージが "chore: snapshot before agent-base update" にマッチ
+#      かつ core/.agent-base-lock.json がステージされている
+
+set -uo pipefail
+
+# ステージされた core/ 配下のファイル一覧
+STAGED_CORE="$(git diff --cached --name-only -- core/ 2>/dev/null)"
+
+if [[ -z "$STAGED_CORE" ]]; then
+    # core/ 配下に変更なし → 許可
+    exit 0
+fi
+
+# コミットメッセージを取得（-m または COMMIT_EDITMSG）
+COMMIT_MSG=""
+
+# 全コミットメッセージを収集（複数 -m 対応）
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m)
+            shift
+            if [[ -n "${1:-}" ]]; then
+                COMMIT_MSG+="$1"
+            fi
+            ;;
+        -m*)
+            COMMIT_MSG+="${1#-m}"
+            ;;
+        --message)
+            shift
+            if [[ -n "${1:-}" ]]; then
+                COMMIT_MSG+="$1"
+            fi
+            ;;
+        --message=*)
+            COMMIT_MSG+="${1#--message=}"
+            ;;
+        -F|--file)
+            # 後でファイルから読む
+            shift
+            ;;
+        -C|--reuse-message)
+            shift
+            ;;
+        *)
+            ;;
+    esac
+    shift
+done
+
+# -m 経由で取れなければ COMMIT_EDITMSG から読む
+if [[ -z "$COMMIT_MSG" ]]; then
+    editmsg="$(git rev-parse --git-dir 2>/dev/null)/COMMIT_EDITMSG"
+    if [[ -f "$editmsg" ]]; then
+        COMMIT_MSG="$(cat "$editmsg" 2>/dev/null)"
+    fi
+fi
+
+# lock.json がステージされているか
+LOCK_STAGED="$(git diff --cached --name-only -- 'core/.agent-base-lock.json' 2>/dev/null)"
+
+# 公式アップデート or スナップショット のパターンマッチ
+is_official_update=0
+if [[ -n "$LOCK_STAGED" ]]; then
+    # 先頭行で判定（コメント行は無視）
+    first_line="$(printf '%s' "$COMMIT_MSG" | grep -v '^#' | head -1)"
+    if [[ "$first_line" =~ ^chore:\ (update\ agent-base\ to\ v|snapshot\ before\ agent-base) ]]; then
+        is_official_update=1
+    fi
+fi
+
+if [[ $is_official_update -eq 1 ]]; then
+    # 公式アップデートとして許可
+    exit 0
+fi
+
+# ブロック
+cat >&2 <<'EOF'
+
+[pre-commit: AgentBase core/ protection]
+
+core/ 配下の変更が検出されましたが、このコミットは公式アップデートとして
+認識されませんでした。
+
+core/ は AgentBase の中核領域であり、直接編集すると整合性チェック
+（self-test）や将来のアップデートで失敗する原因になります。
+
+変更の意図が以下のいずれかの場合は、別の方法を取ってください:
+
+1. 利用者向けルールの追加・変更
+   → rules/ 配下（rules/company/, rules/personal/, rules/tasks/ 等）へ
+
+2. 作業メモ・下書き
+   → work/, _inbox/, _misc/ へ
+
+3. AgentBase 本体の改良（メンテナ）
+   → 作業ディレクトリを AgentBase リポジトリ本体に変更し、
+     core/ を編集後、VERSION を上げて lock.json を再生成してください。
+
+4. 公式アップデートの適用
+   → /core-update または「AgentBase を更新して」を使用してください。
+     公式アップデートは "chore: update agent-base to vX.Y.Z"
+     または "chore: snapshot before agent-base update" という
+     コミットメッセージで、lock.json を同時にステージした場合のみ許可されます。
+
+このチェックを一時的に無効化したい場合は:
+   git commit --no-verify -m "..."
+
+ただし --no-verify は推奨されません。自己責任で実行してください。
+
+EOF
+
+exit 1

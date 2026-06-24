@@ -39,6 +39,12 @@ AI が組織名・名前を確認し、`rules/` にルールを生成、Git 同�
 
 > 既に Git に詳しい方は `git clone https://github.com/KumaBase/agent-base.git my-ai-workspace` でも構いません。安定版として使う場合は Release zip、開発中の最新版を追う場合は clone が向いています。
 
+## 対応環境
+
+- **macOS** / **Linux**：標準環境でそのまま動作
+- **Windows**：[Git for Windows](https://git-scm.com/download/win) をインストールして **Git Bash** 上で使用してください（PowerShell 版は今後の拡張対象）
+- 必要なもの：`bash`（3.2 以上）・`curl`・`git`・`shasum` または `sha256sum`・`unzip` または `tar`
+
 ## ディレクトリ構成
 
 ```text
