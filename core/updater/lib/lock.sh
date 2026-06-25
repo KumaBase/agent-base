@@ -108,12 +108,18 @@ _lock_build_json_object_from_pairs() {
     printf '%s' "$result"
 }
 
-# lock_regenerate <version> <source_url>
+# lock_regenerate <version> <source_url> [preserve_file]
 # core/ と root 雛形を走査し、全 hash を再計算して lock を再生成。
 # 現存の installed_at, last_update_check_at は可能なら保持。
+#
+# preserve_file（任意）: "path\tsha256:hex" 形式。記載された root template
+# パスは現ファイルの hash ではなく preserve_file の旧 hash を baseline として
+# 記録する。未解決マージ（利用者が改変済みで .new を残した状態）のパス向け。
+# これにより次回更新時も「改変あり」と判定され、誤上書きを防ぐ。
 lock_regenerate() {
     local new_version="$1"
     local new_source="$2"
+    local preserve_file="${3:-}"
     local lp
     lp="$(lock_path)"
 
@@ -142,18 +148,27 @@ lock_regenerate() {
     [[ -n "$managed_json" ]] || managed_json="{}"
 
     # root_template_hashes を構築
+    # preserve_file に記載されたパスは旧 hash（未解決マージの baseline）を保持
     local root_pairs="" p
     while IFS= read -r p; do
         [[ -z "$p" ]] && continue
-        local fp="$workspace_root/$p"
-        if [[ -f "$fp" ]]; then
-            local h
-            h="$(hash_compute_sha256 "$fp" 2>/dev/null)" || continue
-            if [[ -z "$root_pairs" ]]; then
-                root_pairs="${p}"$'\t'"${h}"
+        local h=""
+        # preserve_file に記載があれば旧 hash を優先（未解決マージ保護）
+        if [[ -n "$preserve_file" && -f "$preserve_file" ]]; then
+            h="$(awk -F '\t' -v path="$p" '$1 == path { print $2; exit }' "$preserve_file" 2>/dev/null)"
+        fi
+        if [[ -z "$h" ]]; then
+            local fp="$workspace_root/$p"
+            if [[ -f "$fp" ]]; then
+                h="$(hash_compute_sha256 "$fp" 2>/dev/null)" || continue
             else
-                root_pairs+=$'\n'"${p}"$'\t'"${h}"
+                continue
             fi
+        fi
+        if [[ -z "$root_pairs" ]]; then
+            root_pairs="${p}"$'\t'"${h}"
+        else
+            root_pairs+=$'\n'"${p}"$'\t'"${h}"
         fi
     done <<EOF
 AGENTS.md

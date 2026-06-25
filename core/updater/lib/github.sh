@@ -48,57 +48,83 @@ github_curl_args() {
     esac
 }
 
+# _github_semver_gt <a> <b>
+# semver a > b なら真(0)。b が空なら a を勝たせる。a が空なら偽。
+_github_semver_gt() {
+    local a="$1" b="$2"
+    [[ -z "$b" ]] && return 0
+    [[ -z "$a" ]] && return 1
+    local a_major a_minor a_patch b_major b_minor b_patch
+    IFS=. read -r a_major a_minor a_patch <<<"$a"
+    IFS=. read -r b_major b_minor b_patch <<<"$b"
+    a_major=$((10#${a_major:-0})); a_minor=$((10#${a_minor:-0})); a_patch=$((10#${a_patch:-0}))
+    b_major=$((10#${b_major:-0})); b_minor=$((10#${b_minor:-0})); b_patch=$((10#${b_patch:-0}))
+    (( a_major > b_major )) && return 0
+    (( a_major < b_major )) && return 1
+    (( a_minor > b_minor )) && return 0
+    (( a_minor < b_minor )) && return 1
+    (( a_patch > b_patch )) && return 0
+    return 1
+}
+
 # github_get_latest_release
 # 最新リリースの JSON を stdout へ。
 # exit 0: 成功
-# exit 20: ネットワークエラー
+# exit 20: ネットワークエラー / リリース無し
 # exit 21: rate limit
+#
+# 注意: GitHub の /releases/latest は prerelease を除外する。AgentBase は
+# 0.x をすべて prerelease 扱いで配布するため、/releases/latest は常に 404 に
+# なる。代わりに /releases 一覧を取得し、tag_name を semver 比較で最新を選ぶ。
 github_get_latest_release() {
     local auth auth_args
     auth="$(github_detect_auth)"
     github_curl_args "$auth" auth_args
 
-    local url="${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases/latest"
+    local url="${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases?per_page=30"
+    local tmp code
+    tmp="$(mktemp)"
 
     # gh CLI がある場合はそれを優先（より高い rate limit）
     if [[ "$auth" == "gh" ]]; then
-        local out http_code
-        out="$(gh api "repos/${GITHUB_REPO}/releases/latest" 2>/dev/null)"
-        if [[ $? -eq 0 && -n "$out" ]]; then
-            echo "$out"
-            return 0
+        if gh api "repos/${GITHUB_REPO}/releases?per_page=30" >"$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+            : # gh で取得済み
         fi
-        # gh 失敗時は curl にフォールバック
     fi
 
-    local tmp body code
-    tmp="$(mktemp)"
-    code="$(curl -sS -o "$tmp" -w '%{http_code}' --max-time 10 \
-        "${auth_args[@]}" "$url" 2>/dev/null)" || {
-        rm -f "$tmp"
-        return 20
-    }
-    body="$(cat "$tmp" 2>/dev/null)"
+    if [[ ! -s "$tmp" ]]; then
+        code="$(curl -sS -o "$tmp" -w '%{http_code}' --max-time 10 \
+            "${auth_args[@]}" "$url" 2>/dev/null)" || {
+            rm -f "$tmp"
+            return 20
+        }
+        case "$code" in
+            200) : ;;
+            403|429) rm -f "$tmp"; return 21 ;;
+            404) rm -f "$tmp"; echo "github_get_latest_release: no releases (404)" >&2; return 20 ;;
+            *) rm -f "$tmp"; echo "github_get_latest_release: HTTP $code" >&2; return 20 ;;
+        esac
+    fi
+
+    # tag_name を全抽出 → semver で最大を選ぶ
+    local best_tag="" best_ver="" tag ver
+    while IFS= read -r tag; do
+        [[ -z "$tag" ]] && continue
+        ver="${tag#v}"
+        if _github_semver_gt "$ver" "$best_ver"; then
+            best_ver="$ver"
+            best_tag="$tag"
+        fi
+    done < <(json_get_top_array_fields "$tmp" "tag_name")
     rm -f "$tmp"
 
-    case "$code" in
-        200)
-            echo "$body"
-            return 0
-            ;;
-        403|429)
-            return 21
-            ;;
-        404)
-            # リリースが1つも無い
-            echo "github_get_latest_release: no releases found (404)" >&2
-            return 20
-            ;;
-        *)
-            echo "github_get_latest_release: HTTP $code" >&2
-            return 20
-            ;;
-    esac
+    if [[ -z "$best_tag" ]]; then
+        echo "github_get_latest_release: no release tags found" >&2
+        return 20
+    fi
+
+    # 最新タグの完全なリリース JSON を取得して返す
+    github_get_release_by_tag "$best_tag"
 }
 
 # github_get_release_by_tag <tag>

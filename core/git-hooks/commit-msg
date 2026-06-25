@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# pre-commit - core/ 配下の変更を検知し、公式アップデート以外はブロック
+# commit-msg - core/ 配下の変更を検知し、公式アップデート以外はブロック
+#
+# pre-commit ではなく commit-msg を使う理由:
+#   git は pre-commit 実行時にはコミットメッセージを確定しない（引数にも
+#   渡さない）。commit-msg はメッセージファイルのパスを $1 で受け取るため、
+#   メッセージベースの公式アップデート判定が確実に行える。
 #
 # 有効化:
 #   git config core.hooksPath core/git-hooks
@@ -12,6 +17,8 @@
 
 set -uo pipefail
 
+MSG_FILE="$1"
+
 # ステージされた core/ 配下のファイル一覧
 STAGED_CORE="$(git diff --cached --name-only -- core/ 2>/dev/null)"
 
@@ -20,73 +27,24 @@ if [[ -z "$STAGED_CORE" ]]; then
     exit 0
 fi
 
-# コミットメッセージを取得（-m または COMMIT_EDITMSG）
-COMMIT_MSG=""
-
-# 全コミットメッセージを収集（複数 -m 対応）
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -m)
-            shift
-            if [[ -n "${1:-}" ]]; then
-                COMMIT_MSG+="$1"
-            fi
-            ;;
-        -m*)
-            COMMIT_MSG+="${1#-m}"
-            ;;
-        --message)
-            shift
-            if [[ -n "${1:-}" ]]; then
-                COMMIT_MSG+="$1"
-            fi
-            ;;
-        --message=*)
-            COMMIT_MSG+="${1#--message=}"
-            ;;
-        -F|--file)
-            # 後でファイルから読む
-            shift
-            ;;
-        -C|--reuse-message)
-            shift
-            ;;
-        *)
-            ;;
-    esac
-    shift
-done
-
-# -m 経由で取れなければ COMMIT_EDITMSG から読む
-if [[ -z "$COMMIT_MSG" ]]; then
-    editmsg="$(git rev-parse --git-dir 2>/dev/null)/COMMIT_EDITMSG"
-    if [[ -f "$editmsg" ]]; then
-        COMMIT_MSG="$(cat "$editmsg" 2>/dev/null)"
-    fi
-fi
+# コミットメッセージを読む（コメント行を除外した先頭行）
+first_line="$(sed '/^#/d' "$MSG_FILE" 2>/dev/null | head -1)"
 
 # lock.json がステージされているか
 LOCK_STAGED="$(git diff --cached --name-only -- 'core/.agent-base-lock.json' 2>/dev/null)"
 
 # 公式アップデート or スナップショット のパターンマッチ
-is_official_update=0
 if [[ -n "$LOCK_STAGED" ]]; then
-    # 先頭行で判定（コメント行は無視）
-    first_line="$(printf '%s' "$COMMIT_MSG" | grep -v '^#' | head -1)"
     if [[ "$first_line" =~ ^chore:\ (update\ agent-base\ to\ v|snapshot\ before\ agent-base) ]]; then
-        is_official_update=1
+        # 公式アップデートとして許可
+        exit 0
     fi
-fi
-
-if [[ $is_official_update -eq 1 ]]; then
-    # 公式アップデートとして許可
-    exit 0
 fi
 
 # ブロック
 cat >&2 <<'EOF'
 
-[pre-commit: AgentBase core/ protection]
+[commit-msg: AgentBase core/ protection]
 
 core/ 配下の変更が検出されましたが、このコミットは公式アップデートとして
 認識されませんでした。

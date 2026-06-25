@@ -18,7 +18,7 @@ git config --unset core.hooksPath
 
 ## 含まれる hooks
 
-### pre-commit
+### commit-msg
 
 `core/` 配下のファイル変更を検知し、以下の例外を除いてブロックします:
 
@@ -28,6 +28,8 @@ git config --unset core.hooksPath
    かつ `core/.agent-base-lock.json` がステージされている
 
 これらは `/core-update` または `apply-update.sh` による公式アップデートとして扱われます。
+
+> `pre-commit` ではなく `commit-msg` を使う理由: git は pre-commit 実行時にコミットメッセージを確定しないため、メッセージベースの公式アップデート判定が確実に行えません。commit-msg はメッセージファイルのパスを `$1` で受け取ります。
 
 ## 緊急時の回避
 

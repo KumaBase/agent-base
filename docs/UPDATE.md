@@ -88,7 +88,7 @@ git reset --hard HEAD~1
 git config core.hooksPath core/git-hooks
 ```
 
-で `core/` 配下の不正編集を pre-commit でブロックします。
+で `core/` 配下の不正編集を commit-msg フックでブロックします。
 公式アップデート（`/core-update` 経由）のみ許可されます。
 
 詳細は `core/git-hooks/README.md` 参照。

@@ -83,7 +83,6 @@ hash_detect_tool >/dev/null 2>&1 || {
 }
 
 NEW_VERSION="${TAG#v}"
-ZIP_URL_BASE="https://github.com/${GITHUB_REPO:-KumaBase/agent-base}/archive/refs/tags/${TAG}.zip"
 
 # Git リポジトリかどうか
 HAS_GIT=0
@@ -116,8 +115,25 @@ TMPDIR_WORK="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_WORK"' EXIT
 
 ZIP_FILE="$TMPDIR_WORK/agent-base.zip"
-echo "[3/8] Downloading $ZIP_URL_BASE ..." >&2
-if ! github_download "$ZIP_URL_BASE" "$ZIP_FILE"; then
+
+# リリース情報を先に取得。release.yml は git archive 生成の
+# agent-base-${version}.zip を asset として添付し、その hash を checksums.txt
+# に記録する。GitHub のタグアーカイブ（/archive/refs/tags/）は別物のため、
+# checksum 整合を保証するには asset をダウンロードする必要がある。
+RELEASE_JSON="$(github_get_release_by_tag "$TAG" 2>/dev/null)" || RELEASE_JSON=""
+
+ZIP_URL=""
+if [[ -n "$RELEASE_JSON" ]]; then
+    ZIP_URL="$(printf '%s' "$RELEASE_JSON" | github_find_asset_url "agent-base-${NEW_VERSION}.zip")"
+fi
+if [[ -z "$ZIP_URL" ]]; then
+    # asset が無い（古いリリースや未リリース）場合はタグアーカイブにフォールバック
+    ZIP_URL="https://github.com/${GITHUB_REPO:-KumaBase/agent-base}/archive/refs/tags/${TAG}.zip"
+    echo "      [warn] Release asset not found, falling back to tag archive." >&2
+fi
+
+echo "[3/8] Downloading $ZIP_URL ..." >&2
+if ! github_download "$ZIP_URL" "$ZIP_FILE"; then
     echo "apply-update: download failed" >&2
     exit 20
 fi
@@ -129,23 +145,23 @@ fi
 # --- 4. checksums.txt 検証（可能なら） ---
 echo "[4/8] Verifying integrity..." >&2
 
-# リリース情報を取得して checksums.txt を探す
-RELEASE_JSON="$(github_get_release_by_tag "$TAG" 2>/dev/null)" || RELEASE_JSON=""
 ZIP_SUM="$(hash_compute_sha256 "$ZIP_FILE" 2>/dev/null)" || ZIP_SUM=""
 
 # checksums.txt を取得してみる（無くても続行可能。ただし警告）
 CHECKSUMS_OK=0
 if [[ -n "$RELEASE_JSON" ]]; then
-    CHECKSUMS="$(printf '%s' "$RELEASE_JSON" | github_get_checksums 2>/dev/null)" || CHECKSUMS=""
-    rc=$?
-    if [[ $rc -eq 0 && -n "$CHECKSUMS" ]]; then
+    # github_get_checksums は release JSON を第1引数で受け取る（stdin ではない）
+    CHECKSUMS_RC=0
+    CHECKSUMS="$(github_get_checksums "$RELEASE_JSON" 2>/dev/null)" || CHECKSUMS_RC=$?
+    if [[ $CHECKSUMS_RC -ne 0 ]]; then
+        CHECKSUMS=""
+    fi
+    if [[ $CHECKSUMS_RC -eq 0 && -n "$CHECKSUMS" ]]; then
         # checksums.txt の各行: "<sha256>  <filename>"
-        EXPECTED_ZIP_SUM="$(echo "$CHECKSUMS" | awk '/[\/ ]agent-base.*\.zip$|Source.*zip|^([a-f0-9]+[[:space:]]+star\/)?[a-f0-9]+[[:space:]]+\*?$/ {print $1; exit}' 2>/dev/null)"
-        # より確実: ZIP 全体のエントリを探す
-        if [[ -z "$EXPECTED_ZIP_SUM" ]]; then
-            # 最初の行の hash を ZIP 全体とみなす（v0.0.2 以降の形式）
-            EXPECTED_ZIP_SUM="$(echo "$CHECKSUMS" | grep -E '^[a-f0-9]{64}' | head -1 | awk '{print $1}')"
-        fi
+        # asset zip（agent-base-${ver}.zip）のエントリを探す
+        EXPECTED_ZIP_SUM="$(printf '%s\n' "$CHECKSUMS" | awk -v fn="agent-base-${NEW_VERSION}.zip" '
+            { f = $2; sub(/^\*/, "", f); if (f == fn) { print $1; exit } }
+        ')"
         if [[ -n "$EXPECTED_ZIP_SUM" ]]; then
             actual_sum="${ZIP_SUM#sha256:}"
             if [[ "$actual_sum" == "$EXPECTED_ZIP_SUM" ]]; then
@@ -160,7 +176,7 @@ if [[ -n "$RELEASE_JSON" ]]; then
         else
             echo "      [warn] checksums.txt found but ZIP entry not located. Continuing." >&2
         fi
-    elif [[ $rc -eq 10 ]]; then
+    elif [[ $CHECKSUMS_RC -eq 10 ]]; then
         echo "      [warn] checksums.txt not attached to release $TAG." >&2
         echo "             Older releases (v0.0.1) may not have checksums." >&2
         echo "             Continuing without verification." >&2
@@ -244,6 +260,10 @@ ROOT_HASHES_FILE="$TMPDIR_WORK/root_hashes.txt"
 lock_load_root_to_file "$ROOT_HASHES_FILE"
 
 CONFLICTS=""
+# 未解決マージのパスは旧 baseline hash を保持し、lock_regenerate に伝達する。
+# これにより次回更新時も「改変あり」と判定され、誤上書きを防ぐ。
+PRESERVE_FILE="$TMPDIR_WORK/preserve_hashes.txt"
+: >"$PRESERVE_FILE"
 while IFS=$'\t' read -r path expected; do
     [[ -z "$path" ]] && continue
     safety="$(root_merge_is_safe_overwrite "$path" "$expected")"
@@ -261,6 +281,8 @@ while IFS=$'\t' read -r path expected; do
         needs-merge)
             echo "      [needs-merge] $path (user modified)" >&2
             CONFLICTS="${CONFLICTS}${path}|"
+            # 旧 baseline hash を preserve_file へ記録
+            printf '%s\t%s\n' "$path" "$expected" >>"$PRESERVE_FILE"
             if [[ $DRY_RUN -eq 0 && -f "$EXTRACTED_ROOT/$path" ]]; then
                 cp -a "$EXTRACTED_ROOT/$path" "$WORKSPACE_ROOT/${path}.new"
                 echo "        New version saved as: ${path}.new" >&2
@@ -276,7 +298,7 @@ echo "[8/8] Regenerating lock and committing..." >&2
 
 if [[ $DRY_RUN -eq 0 ]]; then
     NEW_SOURCE="https://github.com/${GITHUB_REPO:-KumaBase/agent-base}/archive/refs/tags/${TAG}.zip"
-    if ! lock_regenerate "$NEW_VERSION" "$NEW_SOURCE"; then
+    if ! lock_regenerate "$NEW_VERSION" "$NEW_SOURCE" "$PRESERVE_FILE"; then
         echo "apply-update: lock regeneration failed" >&2
         exit 1
     fi

@@ -74,7 +74,7 @@ AI エージェント向け指示書。利用者が展開フォルダを開い�
 - `core/` 配下の全ファイル（本 lock ファイル自身を除く）
   - `core/rules/`, `core/runtime/`, `core/templates/`, `core/agent-instructions/`
   - `core/updater/`（アップデータ本体）
-  - `core/git-hooks/`（pre-commit 等）
+  - `core/git-hooks/`（commit-msg 等）
   - `core/DO_NOT_EDIT.md`
 
 **root_template_hashes**（利用者が編集しうる雛形）:
@@ -147,7 +147,7 @@ AI の挙動：
   ```bash
   git config core.hooksPath core/git-hooks
   ```
-  これにより `core/` 配下の誤編集・不正編集が pre-commit でブロックされる。
+  これにより `core/` 配下の誤編集・不正編集が commit-msg フックでブロックされる。
   詳細は `core/git-hooks/README.md` 参照。
 
 ---

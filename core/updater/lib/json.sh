@@ -398,6 +398,125 @@ json_get_first_array_object_field() {
     ' "$file"
 }
 
+# json_get_top_array_fields <file> <field_key>
+# トップレベルが配列の JSON から、各オブジェクトの <field_key> 値を
+# 1行1個で stdout へ出力。GitHub /releases 一覧の tag_name 抽出等向け。
+# 値が文字列ならクォートを外す。見つからないオブジェクトはスキップ。
+json_get_top_array_fields() {
+    local file="$1" field_key="$2"
+    [[ -f "$file" ]] || return 0
+
+    awk -v fk="$field_key" '
+        { buf = buf $0 "\n" }
+        END {
+            n = length(buf)
+            # 最初の [ を探す
+            pos = 1
+            while (pos <= n) {
+                c = substr(buf, pos, 1)
+                if (c == "[") break
+                pos++
+            }
+            if (pos > n) exit
+            rest = substr(buf, pos + 1)
+            rn = length(rest)
+            rpos = 1
+            while (rpos <= rn) {
+                while (rpos <= rn) {
+                    c = substr(rest, rpos, 1)
+                    if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != ",") break
+                    rpos++
+                }
+                if (rpos > rn) break
+                c = substr(rest, rpos, 1)
+                if (c == "]") break
+                if (c != "{") { rpos++; continue }
+                obj_start = rpos
+                depth = 1
+                i = obj_start + 1
+                while (i <= rn && depth > 0) {
+                    c = substr(rest, i, 1)
+                    if (c == "\"") {
+                        i++
+                        while (i <= rn) {
+                            ch = substr(rest, i, 1)
+                            if (ch == "\\") { i += 2; continue }
+                            if (ch == "\"") { i++; break }
+                            i++
+                        }
+                        continue
+                    }
+                    if (c == "{") depth++
+                    else if (c == "}") { depth--; if (depth == 0) break }
+                    i++
+                }
+                obj = substr(rest, obj_start + 1, i - obj_start - 1)
+                rpos = i + 1
+
+                # obj 内の field_key を探す
+                on = length(obj)
+                opos = 1
+                while (opos <= on) {
+                    while (opos <= on) {
+                        c = substr(obj, opos, 1)
+                        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != ",") break
+                        opos++
+                    }
+                    if (opos > on) break
+                    if (substr(obj, opos, 1) != "\"") { opos++; continue }
+                    opos++
+                    k_start = opos
+                    while (opos <= on) {
+                        c = substr(obj, opos, 1)
+                        if (c == "\\") { opos += 2; continue }
+                        if (c == "\"") break
+                        opos++
+                    }
+                    fkey = substr(obj, k_start, opos - k_start)
+                    opos++
+                    while (opos <= on) {
+                        c = substr(obj, opos, 1)
+                        if (c != " " && c != "\t" && c != "\n" && c != "\r") break
+                        opos++
+                    }
+                    if (substr(obj, opos, 1) != ":") { continue }
+                    opos++
+                    while (opos <= on) {
+                        c = substr(obj, opos, 1)
+                        if (c != " " && c != "\t" && c != "\n" && c != "\r") break
+                        opos++
+                    }
+                    c = substr(obj, opos, 1)
+                    if (c == "\"") {
+                        opos++
+                        v_start = opos
+                        while (opos <= on) {
+                            ch = substr(obj, opos, 1)
+                            if (ch == "\\") { opos += 2; continue }
+                            if (ch == "\"") break
+                            opos++
+                        }
+                        fval = substr(obj, v_start, opos - v_start)
+                        opos++
+                    } else {
+                        v_start = opos
+                        while (opos <= on) {
+                            ch = substr(obj, opos, 1)
+                            if (ch == "," || ch == "}" || ch == "]" || ch == " " || ch == "\t" || ch == "\n" || ch == "\r") break
+                            opos++
+                        }
+                        fval = substr(obj, v_start, opos - v_start)
+                    }
+                    if (fkey == fk) {
+                        print fval
+                        break
+                    }
+                }
+            }
+        }
+    ' "$file"
+}
+
 # json_find_array_object_field <file> <array_key> <match_key> <match_value> <return_key>
 # 配列内の全オブジェクトを走査し、<match_key> == <match_value> のオブジェクトから
 # <return_key> の値を取得。GitHub API の assets から名前で asset を探す等向け。
