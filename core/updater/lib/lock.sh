@@ -108,6 +108,27 @@ _lock_build_json_object_from_pairs() {
     printf '%s' "$result"
 }
 
+# lock_root_template_paths
+# 管理対象の root template パス一覧を stdout へ（1行1パス）。
+# lock_regenerate と apply-update.sh の更新ループで共有し、一覧を一元管理する。
+# 新規リリースで root template を追加する場合はここへ追記するだけでよい。
+lock_root_template_paths() {
+    cat <<'EOF'
+AGENTS.md
+CLAUDE.md
+workspace-index.md
+.cursor/rules/agent-base.mdc
+.github/copilot-instructions.md
+GEMINI.md
+.windsurfrules
+.agents/rules/agent-base.md
+.agent/rules/agent-base.md
+.claude/settings.json
+.claude/hooks/session-start.sh
+.claude/skills/core-update/SKILL.md
+EOF
+}
+
 # lock_regenerate <version> <source_url> [preserve_file]
 # core/ と root 雛形を走査し、全 hash を再計算して lock を再生成。
 # 現存の installed_at, last_update_check_at は可能なら保持。
@@ -170,20 +191,7 @@ lock_regenerate() {
         else
             root_pairs+=$'\n'"${p}"$'\t'"${h}"
         fi
-    done <<EOF
-AGENTS.md
-CLAUDE.md
-workspace-index.md
-.cursor/rules/agent-base.mdc
-.github/copilot-instructions.md
-GEMINI.md
-.windsurfrules
-.agents/rules/agent-base.md
-.agent/rules/agent-base.md
-.claude/settings.json
-.claude/hooks/session-start.sh
-.claude/skills/core-update/SKILL.md
-EOF
+    done < <(lock_root_template_paths)
     local root_json
     root_json="$(printf '%s\n' "$root_pairs" | _lock_build_json_object_from_pairs)"
 

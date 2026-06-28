@@ -255,7 +255,7 @@ fi
 # --- 7. ルート雛形の 3-way マージ ---
 echo "[7/8] Checking root templates..." >&2
 
-# 現 lock の root_template_hashes を一時ファイルへ
+# 現 lock の root_template_hashes を一時ファイルへ（旧 baseline 参照用）
 ROOT_HASHES_FILE="$TMPDIR_WORK/root_hashes.txt"
 lock_load_root_to_file "$ROOT_HASHES_FILE"
 
@@ -264,8 +264,44 @@ CONFLICTS=""
 # これにより次回更新時も「改変あり」と判定され、誤上書きを防ぐ。
 PRESERVE_FILE="$TMPDIR_WORK/preserve_hashes.txt"
 : >"$PRESERVE_FILE"
-while IFS=$'\t' read -r path expected; do
+
+# 管理対象の全 root template パスを処理（旧 lock + 新規追加の両方をカバー）。
+# 新規リリースで追加されたパスが旧 lock に無くてもアーカイブから配置する。
+while IFS= read -r path; do
     [[ -z "$path" ]] && continue
+    # 旧 lock から baseline hash を参照
+    expected="$(awk -F '\t' -v p="$path" '$1==p {print $2; exit}' "$ROOT_HASHES_FILE" 2>/dev/null)"
+
+    if [[ -z "$expected" ]]; then
+        # 旧 lock にない = 新規追加パス
+        if [[ ! -f "$WORKSPACE_ROOT/$path" ]]; then
+            # ローカルに存在しない → 新規追加としてコピー
+            if [[ $DRY_RUN -eq 1 ]]; then
+                echo "      [dry-run] Would install (new): $path" >&2
+            elif [[ -f "$EXTRACTED_ROOT/$path" ]]; then
+                mkdir -p "$WORKSPACE_ROOT/$(dirname "$path")"
+                cp -a "$EXTRACTED_ROOT/$path" "$WORKSPACE_ROOT/$path"
+                echo "      Installed (new): $path" >&2
+            fi
+        else
+            # ローカルに既存（利用者が作成）→ needs-merge 扱い
+            echo "      [needs-merge] $path (new template, local file exists)" >&2
+            CONFLICTS="${CONFLICTS}${path}|"
+            # 配布版 hash を baseline として保持（次回も改変検知のため）
+            if [[ -f "$EXTRACTED_ROOT/$path" ]]; then
+                _archive_h="$(hash_compute_sha256 "$EXTRACTED_ROOT/$path" 2>/dev/null)"
+                [[ -n "$_archive_h" ]] && printf '%s\t%s\n' "$path" "$_archive_h" >>"$PRESERVE_FILE"
+                if [[ $DRY_RUN -eq 0 ]]; then
+                    mkdir -p "$WORKSPACE_ROOT/$(dirname "$path")"
+                    cp -a "$EXTRACTED_ROOT/$path" "$WORKSPACE_ROOT/${path}.new"
+                    echo "        New version saved as: ${path}.new" >&2
+                fi
+            fi
+        fi
+        continue
+    fi
+
+    # --- 旧 lock にあるパスの 3-way 判定 ---
     safety="$(root_merge_is_safe_overwrite "$path" "$expected")"
     case "$safety" in
         safe)
@@ -273,6 +309,7 @@ while IFS=$'\t' read -r path expected; do
                 echo "      [dry-run] Would overwrite (unchanged): $path" >&2
             else
                 if [[ -f "$EXTRACTED_ROOT/$path" ]]; then
+                    mkdir -p "$WORKSPACE_ROOT/$(dirname "$path")"
                     cp -a "$EXTRACTED_ROOT/$path" "$WORKSPACE_ROOT/$path"
                     echo "      Overwritten (unchanged): $path" >&2
                 fi
@@ -284,6 +321,7 @@ while IFS=$'\t' read -r path expected; do
             # 旧 baseline hash を preserve_file へ記録
             printf '%s\t%s\n' "$path" "$expected" >>"$PRESERVE_FILE"
             if [[ $DRY_RUN -eq 0 && -f "$EXTRACTED_ROOT/$path" ]]; then
+                mkdir -p "$WORKSPACE_ROOT/$(dirname "$path")"
                 cp -a "$EXTRACTED_ROOT/$path" "$WORKSPACE_ROOT/${path}.new"
                 echo "        New version saved as: ${path}.new" >&2
             fi
@@ -291,7 +329,7 @@ while IFS=$'\t' read -r path expected; do
         missing)
             ;;
     esac
-done <"$ROOT_HASHES_FILE"
+done < <(lock_root_template_paths)
 
 # --- 8. lock 再生成 + コミット ---
 echo "[8/8] Regenerating lock and committing..." >&2

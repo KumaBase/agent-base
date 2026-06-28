@@ -13,7 +13,7 @@
 #   1. コミットメッセージが "chore: update agent-base to v..." にマッチ
 #      かつ core/.agent-base-lock.json がステージされている
 #   2. コミットメッセージが "chore: snapshot before agent-base update" にマッチ
-#      かつ core/.agent-base-lock.json がステージされている
+#      （lock.json のステージは不要 — スナップショットは保護用の安全ネット）
 
 set -uo pipefail
 
@@ -33,12 +33,17 @@ first_line="$(sed '/^#/d' "$MSG_FILE" 2>/dev/null | head -1)"
 # lock.json がステージされているか
 LOCK_STAGED="$(git diff --cached --name-only -- 'core/.agent-base-lock.json' 2>/dev/null)"
 
-# 公式アップデート or スナップショット のパターンマッチ
+# 公式アップデート（lock.json のステージ必須。公式の core/ 差し替えを保証）
 if [[ -n "$LOCK_STAGED" ]]; then
-    if [[ "$first_line" =~ ^chore:\ (update\ agent-base\ to\ v|snapshot\ before\ agent-base) ]]; then
-        # 公式アップデートとして許可
+    if [[ "$first_line" =~ ^chore:\ update\ agent-base\ to\ v ]]; then
         exit 0
     fi
+fi
+
+# スナップショット（apply-update.sh が更新前に core/ の dirty を保存する安全ネット。
+# lock.json が未変更でもブロックしない — スナップショットは保護用であり正本変更ではない）
+if [[ "$first_line" =~ ^chore:\ snapshot\ before\ agent-base ]]; then
+    exit 0
 fi
 
 # ブロック

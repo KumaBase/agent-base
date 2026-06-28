@@ -76,19 +76,20 @@ if [[ $FORCE -eq 0 && -n "$LAST_CHECK" && "$LAST_CHECK" != "null" ]]; then
     fi
 fi
 
-# --- last_update_check_at を更新 ---
-lock_set_field "last_update_check_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null || true
-
 # --- GitHub から最新リリース取得 ---
 RELEASE_JSON="$(github_get_latest_release)"
 rc=$?
 if [[ $rc -ne 0 ]]; then
+    # 通信エラー・rate limit 时は時刻を更新せず、24h以内の再チェックを阻害しない
     exit $rc
 fi
 
 if [[ -z "$RELEASE_JSON" ]]; then
     exit 20
 fi
+
+# 取得成功後に last_update_check_at を更新（24h レート制限用）
+lock_set_field "last_update_check_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null || true
 
 LATEST_TAG="$(printf '%s' "$RELEASE_JSON" | github_extract_tag)"
 if [[ -z "$LATEST_TAG" ]]; then
