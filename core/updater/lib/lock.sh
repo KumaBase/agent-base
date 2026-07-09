@@ -14,6 +14,13 @@ if ! command -v json_get_scalar >/dev/null 2>&1; then
     source "$_LOCK_SH_DIR/json.sh"
 fi
 
+# hash.sh も未ロードならロード（lock_regenerate が hash_compute_dir /
+# hash_compute_sha256 を使う。lock.sh 単体を source しても動くようにする）
+if ! command -v hash_compute_sha256 >/dev/null 2>&1; then
+    # shellcheck source=hash.sh
+    source "$_LOCK_SH_DIR/hash.sh"
+fi
+
 # lock_path: workspace root からの相対/絶対パスを解決
 lock_path() {
     # updater の親2階層が core/。その親が workspace root。

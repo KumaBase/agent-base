@@ -88,14 +88,15 @@ if [[ -z "$RELEASE_JSON" ]]; then
     exit 20
 fi
 
-# 取得成功後に last_update_check_at を更新（24h レート制限用）
-lock_set_field "last_update_check_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null || true
-
 LATEST_TAG="$(printf '%s' "$RELEASE_JSON" | github_extract_tag)"
 if [[ -z "$LATEST_TAG" ]]; then
+    # パース失敗時は時刻を更新しない（24h スロットルを進めず再チェック可能に）
     echo '{"error":"parse_failed","message":"could not extract tag_name"}' >&2
     exit 20
 fi
+
+# 取得・パース成功後に last_update_check_at を更新（24h レート制限用）
+lock_set_field "last_update_check_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null || true
 
 # タグからバージョン番号を抽出（v0.0.2 → 0.0.2）
 LATEST_VERSION="${LATEST_TAG#v}"

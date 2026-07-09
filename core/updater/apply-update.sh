@@ -26,6 +26,7 @@ set -uo pipefail
 
 DRY_RUN=0
 SKIP_SNAPSHOT=0
+COMMITTED=0
 TAG=""
 for arg in "$@"; do
     case "$arg" in
@@ -66,12 +67,17 @@ WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$WORKSPACE_ROOT" || exit 1
 
 # --- 依存ツール確認 ---
-for cmd in curl git; do
+for cmd in curl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         echo "apply-update: missing dependency: $cmd" >&2
         exit 23
     fi
 done
+# git は任意依存。無ければスナップショット・コミットをスキップして続行する
+# （SKILL.md の「Git 無しでも更新可能」と整合。HAS_GIT 判定が自然に 0 になる）
+if ! command -v git >/dev/null 2>&1; then
+    echo "apply-update: [warn] git not found. Snapshot and commit steps will be skipped." >&2
+fi
 # unzip または tar のいずれか必須（ZIP 展開に使用）
 if ! command -v unzip >/dev/null 2>&1 && ! command -v tar >/dev/null 2>&1; then
     echo "apply-update: neither unzip nor tar available" >&2
@@ -175,7 +181,11 @@ if [[ -n "$RELEASE_JSON" ]]; then
                 exit 22
             fi
         else
-            echo "      [warn] checksums.txt found but ZIP entry not located. Continuing." >&2
+            # checksums.txt が存在するのにエントリが無いのは異常（生成は
+            # release.yml が保証している）。fail-closed で中止する。
+            echo "apply-update: checksums.txt exists but has no entry for agent-base-${NEW_VERSION}.zip" >&2
+            echo "  Refusing to continue without integrity verification." >&2
+            exit 22
         fi
     elif [[ $CHECKSUMS_RC -eq 10 ]]; then
         echo "      [warn] checksums.txt not attached to release $TAG." >&2
@@ -210,8 +220,15 @@ if [[ $extract_ok -eq 0 ]]; then
     exit 1
 fi
 
-# 展開されたトップディレクトリ（agent-base-XX.Y.Z のような名前）を特定
-EXTRACTED_ROOT="$(find "$EXTRACT_DIR" -maxdepth 1 -mindepth 1 -type d | head -1)"
+# 展開されたトップディレクトリ（agent-base-XX.Y.Z のような名前）を特定。
+# core/ を含むものを選ぶ（__MACOSX 等の余計なトップディレクトリを除外）
+EXTRACTED_ROOT=""
+while IFS= read -r _d; do
+    if [[ -d "$_d/core" ]]; then
+        EXTRACTED_ROOT="$_d"
+        break
+    fi
+done < <(find "$EXTRACT_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort)
 if [[ -z "$EXTRACTED_ROOT" || ! -d "$EXTRACTED_ROOT/core" ]]; then
     echo "apply-update: extracted archive does not contain core/" >&2
     echo "  extracted_root: $EXTRACTED_ROOT" >&2
@@ -373,10 +390,15 @@ if [[ $DRY_RUN -eq 0 ]]; then
         while IFS= read -r path; do
             [[ -n "$path" && -f "$WORKSPACE_ROOT/$path" ]] && git add -- "$path" 2>/dev/null || true
         done < <(lock_root_template_paths)
-        if ! git commit -m "chore: update agent-base to $TAG" >/dev/null 2>&1; then
-            echo "      [warn] commit failed or nothing to commit" >&2
-        else
+        if git commit -m "chore: update agent-base to $TAG" >/dev/null 2>&1; then
+            COMMITTED=1
             echo "      Committed: chore: update agent-base to $TAG" >&2
+        else
+            echo "      [warn] git commit failed or nothing to commit." >&2
+            echo "             Files are updated but no update commit was created" >&2
+            echo "             (git-based rollback is unavailable for this update)." >&2
+            echo "             Check 'git config user.name / user.email', then commit manually:" >&2
+            echo "             git add -A -- core/ && git commit -m 'chore: update agent-base to $TAG'" >&2
         fi
     fi
 else
@@ -413,6 +435,13 @@ fi
         printf '"dry_run":true,'
     else
         printf '"dry_run":false,'
+    fi
+    # 更新コミットが作成されたか（Git 無し・commit 失敗時は false。
+    # false の場合、git ベースのロールバックはこの更新には使えない）
+    if [[ $COMMITTED -eq 1 ]]; then
+        printf '"committed":true,'
+    else
+        printf '"committed":false,'
     fi
     # conflicts は | 区切り → JSON 配列
     printf '"conflicts":['

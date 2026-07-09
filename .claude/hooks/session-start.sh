@@ -133,7 +133,8 @@ if [[ "$rc" == "0" || "$rc" == "10" ]]; then
                 git_has_remote=1
             fi
             local_hooks="$(git -C "$WORKSPACE_ROOT" config core.hooksPath 2>/dev/null || true)"
-            if [[ "$local_hooks" == "core/git-hooks" ]]; then
+            # 相対パス・絶対パスのどちらで設定されていても有効と判定する
+            if [[ "$local_hooks" == "core/git-hooks" || "$local_hooks" == "$WORKSPACE_ROOT/core/git-hooks" ]]; then
                 git_hooks_enabled=1
             fi
         fi
