@@ -12,7 +12,7 @@ description: バーチャル専門家チームを編成して議論・レビュ�
 ## 実行フロー
 
 1. **正本を読む**: `core/agent-instructions/EXPERT_TEAM.agent.md`（役割カタログ・進め方・出力形式・注意事項のすべてはここが正本）
-2. **利用者定義を取り込む**: `rules/` 配下（company / clients / projects / teams / personal）の `*_EXPERT_TEAM.md` を探し、あれば追加の専門家・default_team・disabled_roles・議論スタイルを反映する。複数階層にある場合のマージと優先順位（上位階層優先）は EXPERT_TEAM.agent.md の定義に従う
+2. **利用者定義を取り込む**: **作業文脈に該当する階層のみ** の `*_EXPERT_TEAM.md` を探して反映する — `rules/company/` と `rules/personal/` は常時、`rules/clients/` `rules/projects/` `rules/teams/` は **現在の作業対象に対応するもののみ**（無関係な他クライアント・他プロジェクトの定義は読み込まない。機密の混入防止）。マージと優先順位（上位階層優先）は EXPERT_TEAM.agent.md の定義に従う
 3. **実施**: EXPERT_TEAM.agent.md の「進め方」1〜6 と「出力形式」に従って会議を行う
    - 軽い相談 → 3 名編成で簡潔に
    - 重い意思決定 → 5〜7 名で対立軸を深く掘る
