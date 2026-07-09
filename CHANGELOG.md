@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.2] - 2026-06-24
+## [0.0.2] - 2026-07-09
 
 ### Added
 
@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/core-update` 実行時に Git 未設定を検知した場合、更新前に注意喚起（ロールバック不可など）
   - ユーザーが意図的に Git を使わない場合は `git_setup_policy: dismissed` で案内を抑制可能
 - `UPDATE.agent.md`, `SETUP.agent.md`, `DO_NOT_EDIT.md`, `docs/UPDATE.md` に新しい仕組み（`/core-update`・自動チェック・`checksums` 検証・Git hooks）の記載を追加
+- v0.0.1 からの移行手順書 `docs/UPGRADE-0.0.1-to-0.0.2.md`（AI に渡すプロンプト付き。v0.0.1 には updater が無いため、この移行のみ手動手順）
 
 ### Changed
 
