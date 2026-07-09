@@ -60,6 +60,7 @@ Purpose: Instance entry point for AI agents
 - 更新: `core/agent-instructions/UPDATE.agent.md`
 - Git 同期: `core/agent-instructions/AUTOSYNC.agent.md`
 - ルール変更: `core/agent-instructions/CUSTOMIZE.agent.md`
+- 専門家チーム: `core/agent-instructions/EXPERT_TEAM.agent.md`
 
 ---
 
@@ -99,6 +100,7 @@ Purpose: Instance entry point for AI agents
 | 健康診断して | `core/agent-instructions/SELF_HEAL.agent.md` |
 | AgentBase を更新して | `core/agent-instructions/UPDATE.agent.md` |
 | ルールを追加・変更して | `core/agent-instructions/CUSTOMIZE.agent.md` |
+| 専門家チームを呼んで / 会議して | `core/agent-instructions/EXPERT_TEAM.agent.md` |
 
 ---
 

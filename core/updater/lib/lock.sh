@@ -133,6 +133,7 @@ GEMINI.md
 .claude/settings.json
 .claude/hooks/session-start.sh
 .claude/skills/core-update/SKILL.md
+.claude/skills/expert-team/SKILL.md
 EOF
 }
 

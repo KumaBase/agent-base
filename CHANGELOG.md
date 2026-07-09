@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-07-10
+
+### Added
+
+- バーチャル専門家チーム機能
+  - `core/agent-instructions/EXPERT_TEAM.agent.md`: 依頼内容に応じて 3〜7 名の専門家役割を編成し、多視点の議論・レビュー・意思決定支援・成果物作成を行う AI 向け手順書。役割カタログ（中核専門家 / 実行視点 / 個人・生活視点 / 盲点発見視点）を収録
+  - `core/templates/expert-team-template.md`: 利用者が独自の専門家・既定編成・議論スタイルを `rules/` 側に定義するための雛形（`*_EXPERT_TEAM.md`）
+  - `.claude/skills/expert-team/SKILL.md`: Claude Code Slash Command `/expert-team`
+  - `core/runtime/AGENTS.md`: 実行ルールに起動条件（明示起動 / 自発提案）と「会議の結論は利用者の承認を代替しない」原則を追加
+  - ルート `AGENTS.md` の「AI に頼める操作」に「専門家チームを呼んで / 会議して」を追加
+
+### Changed
+
+- lock の `root_template_hashes` 管理対象に `.claude/skills/expert-team/SKILL.md` を追加（`lock.sh`, `SETUP.agent.md`）
+
 ## [0.0.2] - 2026-07-09
 
 ### Added
