@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `.claude/skills/expert-team/SKILL.md`: Claude Code Slash Command `/expert-team`
   - `core/runtime/AGENTS.md`: 実行ルールに起動条件（明示起動 / 自発提案）と「会議の結論は利用者の承認を代替しない」原則を追加
   - ルート `AGENTS.md` の「AI に頼める操作」に「専門家チームを呼んで / 会議して」を追加
+  - 役割カタログのカスタマイズはルール全階層に対応（追加は全階層マージ・同名と競合は上位階層優先・disabled_roles は下位で強める方向のみ）
+- サブエージェント運用の司令塔原則（`core/runtime/AGENTS.md` §12）
+  - 利用者と直接会話するのは司令塔（PM / 管理者）1体のみ。重い処理はサブエージェントへ委譲し、司令塔が検証・統合して報告
+  - 承認の窓口は司令塔に一本化（サブエージェントは L3/L4 操作を直接実行しない）
+  - 専門家チームとの併用: 各専門家の意見出しをサブエージェントへ並列委譲可能（議長は司令塔）
 
 ### Changed
 
