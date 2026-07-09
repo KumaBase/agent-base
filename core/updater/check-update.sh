@@ -80,7 +80,7 @@ fi
 RELEASE_JSON="$(github_get_latest_release)"
 rc=$?
 if [[ $rc -ne 0 ]]; then
-    # 通信エラー・rate limit 时は時刻を更新せず、24h以内の再チェックを阻害しない
+    # 通信エラー・rate limit 時は時刻を更新せず、24h以内の再チェックを阻害しない
     exit $rc
 fi
 

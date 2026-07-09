@@ -29,7 +29,7 @@ UPDATER="$WORKSPACE_ROOT/core/updater"
 # shellcheck source=/dev/null
 . "$UPDATER/lib/json.sh" 2>/dev/null
 
-# stdin を読む（bash 組み込み read -t でタイムアウント付き、timeout コマンド不要）
+# stdin を読む（bash 組み込み read -t でタイムアウト付き、timeout コマンド不要）
 INPUT_FILE="$(mktemp 2>/dev/null)"
 trap 'rm -f "$INPUT_FILE"' EXIT
 # 1行目（Claude Code は1行 JSON を渡す）を5秒タイムアウトで読む
@@ -80,7 +80,9 @@ case "$rc" in
             TAG="$(json_get_scalar "$UJ_FILE" "tag")"
             CURRENT="$(json_get_scalar "$UJ_FILE" "current")"
             LATEST="$(json_get_scalar "$UJ_FILE" "latest")"
-            CHANGELOG_BRIEF="$(json_get_scalar "$UJ_FILE" "changelog" | head -30)"
+            # json_get_scalar は \n 等をエスケープされたまま返す（1行）。
+            # printf '%b' で実際の改行へ戻してから先頭30行に切り詰める。
+            CHANGELOG_BRIEF="$(printf '%b' "$(json_get_scalar "$UJ_FILE" "changelog")" | head -30)"
             rm -f "$UJ_FILE"
             ADDITIONAL="[AgentBase Update Available]
 New version: $LATEST (current: $CURRENT, tag: $TAG)

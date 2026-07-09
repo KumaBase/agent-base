@@ -71,9 +71,9 @@ core/ は AgentBase の中核領域であり、直接編集すると整合性チ
 
 4. 公式アップデートの適用
    → /core-update または「AgentBase を更新して」を使用してください。
-     公式アップデートは "chore: update agent-base to vX.Y.Z"
-     または "chore: snapshot before agent-base update" という
-     コミットメッセージで、lock.json を同時にステージした場合のみ許可されます。
+     許可されるのは "chore: update agent-base to vX.Y.Z"（lock.json の
+     同時ステージ必須）と "chore: snapshot before agent-base update"
+     （更新前スナップショット）のコミットのみです。
 
 このチェックを一時的に無効化したい場合は:
    git commit --no-verify -m "..."

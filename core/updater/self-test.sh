@@ -78,8 +78,9 @@ done <"$MANAGED_FILE"
 while IFS= read -r -d '' f; do
     rel="${f#"$WORKSPACE_ROOT/core/"}"
     [[ "$rel" == ".agent-base-lock.json" ]] && continue
-    # MANAGED_FILE に rel があるか
-    if ! grep -q "^${rel}	" "$MANAGED_FILE" 2>/dev/null; then
+    # MANAGED_FILE に rel があるか（固定文字列の完全一致。grep 正規表現だと
+    # ファイル名中の . 等がメタ文字として解釈され誤判定しうる）
+    if ! awk -F '\t' -v p="$rel" '$1 == p { found = 1; exit } END { exit !found }' "$MANAGED_FILE" 2>/dev/null; then
         echo "$rel" >>"$EXTRA_FILE"
     fi
 done < <(find "$WORKSPACE_ROOT/core" -type f -not -name '.DS_Store' -print0 2>/dev/null)

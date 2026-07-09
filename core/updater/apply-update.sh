@@ -345,10 +345,12 @@ if [[ $DRY_RUN -eq 0 ]]; then
     # Git コミット
     if [[ $HAS_GIT -eq 1 ]]; then
         git add -A -- core/ 2>/dev/null
-        # ルート雛形の上書き分もステージ
-        while IFS=$'\t' read -r path _; do
+        # ルート雛形の上書き分・新規追加分もステージ
+        # （旧 lock ではなく管理対象パス一覧を使う。新リリースで追加された
+        #   template は旧 lock に無いため、旧 lock 基準だとコミット漏れになる）
+        while IFS= read -r path; do
             [[ -n "$path" && -f "$WORKSPACE_ROOT/$path" ]] && git add -- "$path" 2>/dev/null || true
-        done <"$ROOT_HASHES_FILE"
+        done < <(lock_root_template_paths)
         if ! git commit -m "chore: update agent-base to $TAG" >/dev/null 2>&1; then
             echo "      [warn] commit failed or nothing to commit" >&2
         else

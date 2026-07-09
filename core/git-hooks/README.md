@@ -25,7 +25,7 @@ git config --unset core.hooksPath
 1. コミットメッセージが `chore: update agent-base to vX.Y.Z` 形式
    かつ `core/.agent-base-lock.json` がステージされている
 2. コミットメッセージが `chore: snapshot before agent-base update`
-   かつ `core/.agent-base-lock.json` がステージされている
+   （lock.json のステージは不要 — 更新前の dirty 状態を保存する安全ネットのため）
 
 これらは `/core-update` または `apply-update.sh` による公式アップデートとして扱われます。
 

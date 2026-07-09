@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hash.sh - SHA256 計算・検証ユーティリル
+# hash.sh - SHA256 計算・検証ユーティリティ
 # 配布管理下。編集は AgentBase 公式アップデートのみ。
 #
 # 依存: shasum (macOS/BSD) または sha256sum (Linux)
