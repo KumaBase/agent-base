@@ -1,7 +1,7 @@
 # {OWNER_NAME}_EXPERT_TEAM
 
 Date: {YYYY-MM-DD}
-Layer: Company Rule / Personal Rule の拡張
+Layer: Company / Client / Project / Team / Personal Rule の拡張（置いた階層に従う）
 Owner: {OWNER_NAME}
 Status: Draft / Approved
 
@@ -9,10 +9,20 @@ Status: Draft / Approved
 
 ## 0. 位置づけ
 
-この文書は、バーチャル専門家チーム（`core/agent-instructions/EXPERT_TEAM.agent.md`）の役割カタログを {OWNER_NAME} 向けに拡張するものである。
+この文書は、バーチャル専門家チーム（`core/agent-instructions/EXPERT_TEAM.agent.md`）の役割カタログ（Core の既定セット）を {OWNER_NAME} 向けに拡張するものである。
 
-- 置き場所: `rules/company/{COMPANY}_EXPERT_TEAM.md` または `rules/personal/{NAME}_EXPERT_TEAM.md`
+置き場所（カスタマイズしたい階層に置く）:
+
+- Company: `rules/company/{COMPANY}_EXPERT_TEAM.md`
+- Client: `rules/clients/{CLIENT}/{CLIENT}_EXPERT_TEAM.md`
+- Project: `rules/projects/{PROJECT}/{PROJECT}_EXPERT_TEAM.md`
+- Team: `rules/teams/{TEAM}/{TEAM}_EXPERT_TEAM.md`
+- Personal: `rules/personal/{NAME}_EXPERT_TEAM.md`
+
+制約:
+
 - 上位ルール（Core Rule 等）を緩和または上書きしてはならない
+- 上位階層が無効化した役割を下位階層で復活させることはできない（制約は下位で強める方向のみ）
 - 「会議の結論は利用者の承認を代替しない」原則はこの文書でも変更できない
 
 ---

@@ -106,14 +106,23 @@ AI エージェント向け指示書。利用者が **「専門家チームを�
 
 ## 利用者定義の専門家（拡張）
 
-`rules/` 配下に `*_EXPERT_TEAM.md`（例: `rules/company/{COMPANY}_EXPERT_TEAM.md`, `rules/personal/{NAME}_EXPERT_TEAM.md`）があれば読み込み、以下を反映する:
+上記カタログは Core（上位概念）の既定セットである。各ルール階層は `*_EXPERT_TEAM.md` を置くことでカスタマイズできる:
 
-- **追加の専門家** をカタログに加える（組織固有の顧問、業界メンター等）
-- **default_team**（よく使う既定編成）があれば人選の起点にする
-- **disabled_roles**（使わない役割）は編成に含めない
-- **議論スタイルの好み** に従う
+| 階層 | 置き場所（例） |
+|---|---|
+| Company | `rules/company/{COMPANY}_EXPERT_TEAM.md` |
+| Client | `rules/clients/{CLIENT}/{CLIENT}_EXPERT_TEAM.md` |
+| Project | `rules/projects/{PROJECT}/{PROJECT}_EXPERT_TEAM.md` |
+| Team | `rules/teams/{TEAM}/{TEAM}_EXPERT_TEAM.md` |
+| Personal | `rules/personal/{NAME}_EXPERT_TEAM.md` |
 
-雛形: `core/templates/expert-team-template.md`
+会議の前に、作業文脈に該当する階層の `*_EXPERT_TEAM.md` を確認し、以下を反映する:
+
+- **追加の専門家**: 全階層をマージしてカタログに加える（組織固有の顧問、業界メンター等）。同名の役割が複数階層にある場合は上位階層の定義が優先
+- **disabled_roles**: どの階層でも追加できる（制約は下位で強めてよい）。ただし上位階層が無効化した役割を下位階層で復活させることはできない
+- **default_team・議論スタイル**: 競合したら上位階層（Company > Client > Project > Team > Personal）が優先。上位が定めていない項目は下位が定めてよい
+
+階層の優先原則は `core/rules/AI_AGENT_RULE_HIERARCHY.md` に従う。雛形: `core/templates/expert-team-template.md`
 
 ---
 
