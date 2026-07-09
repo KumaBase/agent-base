@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# commit-msg - core/ 配下の変更を検知し、公式アップデート以外はブロック
+#
+# pre-commit ではなく commit-msg を使う理由:
+#   git は pre-commit 実行時にはコミットメッセージを確定しない（引数にも
+#   渡さない）。commit-msg はメッセージファイルのパスを $1 で受け取るため、
+#   メッセージベースの公式アップデート判定が確実に行える。
+#
+# 有効化:
+#   git config core.hooksPath core/git-hooks
+#
+# 例外（許可）:
+#   1. コミットメッセージが "chore: update agent-base to v..." にマッチ
+#      かつ core/.agent-base-lock.json がステージされている
+#   2. コミットメッセージが "chore: snapshot before agent-base update" にマッチ
+#      （lock.json のステージは不要 — スナップショットは保護用の安全ネット）
+#   3. ステージされた core/ の変更が core/.agent-base-lock.json のみ
+#      （check-update.sh の時刻更新・セットアップ時の lock 生成が通常コミットに
+#        混ざるため。lock 単独の改変は self-test の hash 照合で検出できる）
+
+set -uo pipefail
+
+MSG_FILE="$1"
+
+# ステージされた core/ 配下のファイル一覧
+STAGED_CORE="$(git diff --cached --name-only -- core/ 2>/dev/null)"
+
+if [[ -z "$STAGED_CORE" ]]; then
+    # core/ 配下に変更なし → 許可
+    exit 0
+fi
+
+# core/ の変更が lock.json のみ → 許可
+# （check-update.sh が last_update_check_at を書き換える・セットアップが lock を
+#   生成するため、通常コミットに lock.json 単体が混ざるのは正常な運用。
+#   lock.json 単独の改変は core/ 実体との hash 不一致として self-test で検出される）
+if [[ "$STAGED_CORE" == "core/.agent-base-lock.json" ]]; then
+    exit 0
+fi
+
+# コミットメッセージを読む（コメント行を除外した先頭行）
+first_line="$(sed '/^#/d' "$MSG_FILE" 2>/dev/null | head -1)"
+
+# lock.json がステージされているか
+LOCK_STAGED="$(git diff --cached --name-only -- 'core/.agent-base-lock.json' 2>/dev/null)"
+
+# 公式アップデート（lock.json のステージ必須。公式の core/ 差し替えを保証）
+if [[ -n "$LOCK_STAGED" ]]; then
+    if [[ "$first_line" =~ ^chore:\ update\ agent-base\ to\ v ]]; then
+        exit 0
+    fi
+fi
+
+# スナップショット（apply-update.sh が更新前に core/ の dirty を保存する安全ネット。
+# lock.json が未変更でもブロックしない — スナップショットは保護用であり正本変更ではない）
+if [[ "$first_line" =~ ^chore:\ snapshot\ before\ agent-base ]]; then
+    exit 0
+fi
+
+# ブロック
+cat >&2 <<'EOF'
+
+[commit-msg: AgentBase core/ protection]
+
+core/ 配下の変更が検出されましたが、このコミットは公式アップデートとして
+認識されませんでした。
+
+core/ は AgentBase の中核領域であり、直接編集すると整合性チェック
+（self-test）や将来のアップデートで失敗する原因になります。
+
+変更の意図が以下のいずれかの場合は、別の方法を取ってください:
+
+1. 利用者向けルールの追加・変更
+   → rules/ 配下（rules/company/, rules/personal/, rules/tasks/ 等）へ
+
+2. 作業メモ・下書き
+   → work/, _inbox/, _misc/ へ
+
+3. AgentBase 本体の改良（メンテナ）
+   → 作業ディレクトリを AgentBase リポジトリ本体に変更し、
+     core/ を編集後、VERSION を上げて lock.json を再生成してください。
+
+4. 公式アップデートの適用
+   → /core-update または「AgentBase を更新して」を使用してください。
+     許可されるのは "chore: update agent-base to vX.Y.Z"（lock.json の
+     同時ステージ必須）と "chore: snapshot before agent-base update"
+     （更新前スナップショット）のコミットのみです。
+
+このチェックを一時的に無効化したい場合は:
+   git commit --no-verify -m "..."
+
+ただし --no-verify は推奨されません。自己責任で実行してください。
+
+EOF
+
+exit 1

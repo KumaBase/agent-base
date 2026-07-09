@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: ver
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # 0.x 系は prerelease 扱い
+          if [[ "$VERSION" == 0.* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build source archive
+        run: |
+          # GitHub が自動生成する Source code (zip) と同等品をローカル生成し、
+          # チェックサム検証対象として使う。Release 作成後に Source code が
+          # 自動添付されるが、CI 側で固定ファイル名のアーカイブも添付する。
+          mkdir -p dist
+          git -C "$GITHUB_WORKSPACE" archive --format=zip --prefix="agent-base-${{ steps.ver.outputs.version }}/" -o "dist/agent-base-${{ steps.ver.outputs.version }}.zip" HEAD
+
+      - name: Generate checksums
+        run: |
+          mkdir -p dist
+          {
+            # ZIP アーカイブ全体の SHA256
+            cd dist
+            sha256sum "agent-base-${{ steps.ver.outputs.version }}.zip"
+            cd ..
+            # core/ 配下の各ファイル SHA256（改ざん検出用）
+            find core -type f -not -name '.DS_Store' -not -name '.agent-base-lock.json' -print0 \
+              | sort -z \
+              | xargs -0 sha256sum
+          } > dist/checksums.txt
+          cat dist/checksums.txt
+
+      - name: Create Release
+        id: rel
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          prerelease: ${{ steps.ver.outputs.prerelease }}
+          files: |
+            dist/agent-base-${{ steps.ver.outputs.version }}.zip
+            dist/checksums.txt

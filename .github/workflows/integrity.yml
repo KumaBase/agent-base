@@ -1,0 +1,131 @@
+name: Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - '.claude/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'workspace-index.md'
+      - '.cursor/rules/agent-base.mdc'
+      - '.github/copilot-instructions.md'
+      - 'GEMINI.md'
+      - '.windsurfrules'
+      - '.agents/rules/agent-base.md'
+      - '.agent/rules/agent-base.md'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-lock:
+    name: Verify lock.json integrity (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify managed_file_hashes (core/)
+        run: |
+          set -e
+          LOCK="core/.agent-base-lock.json"
+          if [[ ! -f "$LOCK" ]]; then
+            echo "::error::lock file not found: $LOCK"
+            exit 1
+          fi
+
+          # SHA256 計算コマンドを検出
+          if command -v sha256sum >/dev/null 2>&1; then
+              HASH_CMD=( sha256sum )
+          elif command -v shasum >/dev/null 2>&1; then
+              HASH_CMD=( shasum -a 256 )
+          else
+              echo "::error::neither sha256sum nor shasum available"
+              exit 1
+          fi
+
+          # json.sh を使って lock を読む（jq 不要）
+          source core/updater/lib/json.sh
+
+          # 配布元リポジトリでは lock.json は version=null のプレースホルダ。
+          # セットアップ時に実 hash が生成されるため、ここでは検証をスキップする。
+          LOCK_VERSION="$(json_get_scalar "$LOCK" version)"
+          if [[ -z "$LOCK_VERSION" || "$LOCK_VERSION" == "null" ]]; then
+            echo "::notice::lock.json is a placeholder (version=null). Skipping managed_file_hashes verification (distribution source repo)."
+            exit 0
+          fi
+
+          fail=0
+          # managed_file_hashes をパスごとに出力
+          while IFS=$'\t' read -r path expected; do
+            [[ -z "$path" ]] && continue
+            fp="core/$path"
+            if [[ ! -f "$fp" ]]; then
+              echo "::error file=$fp::file listed in lock.managed_file_hashes not found"
+              fail=1
+              continue
+            fi
+            actual="sha256:$("${HASH_CMD[@]}" "$fp" | awk '{print $1}')"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error file=$fp::hash mismatch (lock: $expected, actual: $actual)"
+              fail=1
+            else
+              echo "::notice file=$fp::OK"
+            fi
+          done < <(json_get_object_pairs "$LOCK" "managed_file_hashes")
+
+          # core/ 配下で lock に無いファイルを検出（extra）
+          managed_paths_file="$(mktemp)"
+          json_get_object_pairs "$LOCK" "managed_file_hashes" | awk -F '\t' '{print $1}' >"$managed_paths_file"
+          while IFS= read -r f; do
+            rel="${f#core/}"
+            [[ "$rel" == ".agent-base-lock.json" ]] && continue
+            if ! grep -Fxq -- "$rel" "$managed_paths_file"; then
+              echo "::error file=$f::file in core/ not tracked in lock.managed_file_hashes"
+              fail=1
+            fi
+          done < <(find core -type f -not -name '.DS_Store')
+          rm -f "$managed_paths_file"
+
+          if [[ $fail -ne 0 ]]; then
+            echo "::error::integrity check failed"
+            exit 1
+          fi
+          echo "::notice::managed_file_hashes verified"
+
+      - name: Verify root_template_hashes (root templates)
+        run: |
+          set -e
+          LOCK="core/.agent-base-lock.json"
+          source core/updater/lib/json.sh
+
+          if command -v sha256sum >/dev/null 2>&1; then
+              HASH_CMD=( sha256sum )
+          else
+              HASH_CMD=( shasum -a 256 )
+          fi
+
+          # root_template_hashes は配布時の hash。PR 上では編集されていても OK（利用者改変として扱う）。
+          # CI では「lock に載っているパスが存在するか」だけを検証（hash 不一致は warn）。
+          while IFS=$'\t' read -r path expected; do
+            [[ -z "$path" ]] && continue
+            if [[ ! -f "$path" ]]; then
+              echo "::warning file=$path::root_template path not found (may have been intentionally removed)"
+              continue
+            fi
+            actual="sha256:$("${HASH_CMD[@]}" "$path" | awk '{print $1}')"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::warning file=$path::root_template hash differs from lock (customized? run lock regeneration if intentional)"
+            fi
+          done < <(json_get_object_pairs "$LOCK" "root_template_hashes")
+          echo "::notice::root_template_hashes verified (warnings allowed)"
