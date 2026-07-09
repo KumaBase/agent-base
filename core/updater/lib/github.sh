@@ -57,6 +57,9 @@ _github_semver_gt() {
     local a_major a_minor a_patch b_major b_minor b_patch
     IFS=. read -r a_major a_minor a_patch <<<"$a"
     IFS=. read -r b_major b_minor b_patch <<<"$b"
+    # 数字以外のサフィックスを除去（v0.1.0-rc1 等で算術エラーにならないように）
+    a_major="${a_major%%[!0-9]*}"; a_minor="${a_minor%%[!0-9]*}"; a_patch="${a_patch%%[!0-9]*}"
+    b_major="${b_major%%[!0-9]*}"; b_minor="${b_minor%%[!0-9]*}"; b_patch="${b_patch%%[!0-9]*}"
     a_major=$((10#${a_major:-0})); a_minor=$((10#${a_minor:-0})); a_patch=$((10#${a_patch:-0}))
     b_major=$((10#${b_major:-0})); b_minor=$((10#${b_minor:-0})); b_patch=$((10#${b_patch:-0}))
     (( a_major > b_major )) && return 0
@@ -240,15 +243,18 @@ github_get_changelog_section() {
     # to 〜 from のセクションを抽出（簡易）
     # [x.y.z] 見出しで区切る
     awk -v from="$from" -v to="$to" '
+        # from の見出しが CHANGELOG に無い場合に末尾まで出力し続けるのを
+        # 防ぐため、出力は最大120行で打ち切る
+        function emit(s) { print s; if (++emitted >= 120) exit }
         /^## \[/ {
             hdr=$0
             gsub(/^## \[|\].*$/, "", hdr)
             current=hdr
-            if (current == to) { p=1; print; next }
+            if (current == to) { p=1; emit($0); next }
             if (current == from) { p=0; exit }
-            if (p) { print; next }
+            if (p) { emit($0); next }
             next
         }
-        { if (p) print }
+        { if (p) emit($0) }
     ' "$cl"
 }
