@@ -192,10 +192,18 @@ if [[ -n "$RELEASE_JSON" ]]; then
         echo "             Older releases (v0.0.1) may not have checksums." >&2
         echo "             Continuing without verification." >&2
     else
-        echo "      [warn] Failed to fetch checksums.txt (network?). Continuing." >&2
+        # checksums.txt は添付されているのに取得できない（ネットワーク断等）。
+        # 検証できない状態で core/ を差し替えない（fail-closed）。再実行で回復可能
+        echo "apply-update: failed to fetch checksums.txt (network?)." >&2
+        echo "  Refusing to continue without integrity verification. Retry later." >&2
+        exit 20
     fi
 else
-    echo "      [warn] Release metadata unavailable. Skipping checksums verification." >&2
+    # リリースメタデータが取得できない = checksums.txt の有無も確認できない。
+    # タグアーカイブへフォールバックした ZIP を未検証のまま適用しない（fail-closed）
+    echo "apply-update: release metadata unavailable; cannot verify checksums." >&2
+    echo "  Refusing to continue without integrity verification. Retry later." >&2
+    exit 20
 fi
 
 # --- 5. 展開 ---
@@ -363,6 +371,8 @@ while IFS= read -r path; do
             fi
             ;;
         missing)
+            # ローカルに存在しない = 利用者が意図的に削除した template
+            # （例: 使わない AI ツールの入口ファイル）。更新時に復活させない
             ;;
     esac
 done < <(lock_root_template_paths)

@@ -108,6 +108,10 @@ if [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
     IFS=. read -r new_major new_minor new_patch <<<"$LATEST_VERSION"
     cur_major="${cur_major:-0}"; cur_minor="${cur_minor:-0}"; cur_patch="${cur_patch:-0}"
     new_major="${new_major:-0}"; new_minor="${new_minor:-0}"; new_patch="${new_patch:-0}"
+    # 数字以外のサフィックスを除去（v0.1.0-rc1 等で算術エラーにならないように。
+    # プレリリース序列は扱わない: 0.0.2-beta は 0.0.2 と同値として比較）
+    cur_major="${cur_major%%[!0-9]*}"; cur_minor="${cur_minor%%[!0-9]*}"; cur_patch="${cur_patch%%[!0-9]*}"
+    new_major="${new_major%%[!0-9]*}"; new_minor="${new_minor%%[!0-9]*}"; new_patch="${new_patch%%[!0-9]*}"
     # ゼロ詰めして数値比較
     cur_major=$((10#${cur_major:-0})); cur_minor=$((10#${cur_minor:-0})); cur_patch=$((10#${cur_patch:-0}))
     new_major=$((10#${new_major:-0})); new_minor=$((10#${new_minor:-0})); new_patch=$((10#${new_patch:-0}))
