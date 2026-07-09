@@ -94,8 +94,9 @@ echo "[1/8] Target: $TAG (v$NEW_VERSION)" >&2
 
 # --- 2. スナップショットコミット（Git 有効・dry-run 無し・skip-snapshot 無し） ---
 if [[ $HAS_GIT -eq 1 && $DRY_RUN -eq 0 && $SKIP_SNAPSHOT -eq 0 ]]; then
-    if ! git diff --quiet HEAD -- core/ 2>/dev/null || \
-       ! git diff --cached --quiet HEAD -- core/ 2>/dev/null; then
+    # git status --porcelain は tracked の変更に加えて untracked ファイルも
+    # 検出する（git diff だけだと untracked が漏れ、後段の rm -rf で消える）
+    if [[ -n "$(git status --porcelain -- core/ 2>/dev/null)" ]]; then
         echo "[2/8] Creating snapshot commit before update..." >&2
         git add -A -- core/ 2>/dev/null
         if ! git commit -m "chore: snapshot before agent-base update" >/dev/null 2>&1; then
@@ -233,17 +234,35 @@ if [[ $DRY_RUN -eq 1 ]]; then
     echo "      Diff (old → new):" >&2
     diff "$OLD_CORE_HASH_FILE" "$NEW_CORE_HASH_FILE" >&2 || true
 else
-    # core/ を退避してから差し替え
+    # core/ を退避してから差し替え。退避に失敗したら何も変更せず中止する
     BACKUP_DIR="$TMPDIR_WORK/core_backup"
     if [[ -d "$WORKSPACE_ROOT/core" ]]; then
-        cp -a "$WORKSPACE_ROOT/core" "$BACKUP_DIR"
+        if ! cp -a "$WORKSPACE_ROOT/core" "$BACKUP_DIR"; then
+            echo "apply-update: failed to back up core/. Aborting (nothing changed)." >&2
+            exit 1
+        fi
     fi
 
     # core/.agent-base-lock.json は保持対象（ユーザーの installed_at 等）
     OLD_LOCK="$BACKUP_DIR/.agent-base-lock.json"
 
     rm -rf "$WORKSPACE_ROOT/core"
-    cp -a "$EXTRACTED_ROOT/core" "$WORKSPACE_ROOT/core"
+    if ! cp -a "$EXTRACTED_ROOT/core" "$WORKSPACE_ROOT/core"; then
+        # コピー失敗（ディスク満杯・権限等）。バックアップから復元して中止
+        echo "apply-update: failed to install new core/. Restoring backup..." >&2
+        rm -rf "$WORKSPACE_ROOT/core"
+        if [[ -d "$BACKUP_DIR" ]] && cp -a "$BACKUP_DIR" "$WORKSPACE_ROOT/core"; then
+            echo "      core/ restored from backup." >&2
+        else
+            # 復元も失敗。EXIT trap による一時ディレクトリ削除を解除して
+            # バックアップを残し、場所を利用者へ伝える
+            trap - EXIT
+            echo "apply-update: FATAL: could not restore core/." >&2
+            echo "  Backup preserved at: $BACKUP_DIR" >&2
+            echo "  Restore manually: cp -a '$BACKUP_DIR' '$WORKSPACE_ROOT/core'" >&2
+        fi
+        exit 1
+    fi
 
     # lock が存在した場合は復元（hash 再計算は後で行う）
     if [[ -f "$OLD_LOCK" ]]; then
@@ -338,6 +357,9 @@ if [[ $DRY_RUN -eq 0 ]]; then
     NEW_SOURCE="https://github.com/${GITHUB_REPO:-KumaBase/agent-base}/archive/refs/tags/${TAG}.zip"
     if ! lock_regenerate "$NEW_VERSION" "$NEW_SOURCE" "$PRESERVE_FILE"; then
         echo "apply-update: lock regeneration failed" >&2
+        echo "  core/ is already replaced with $TAG but lock.json is stale." >&2
+        echo "  Recover: 'git checkout -- core/' (or reset to the snapshot commit)" >&2
+        echo "  and re-run apply-update.sh. Inspect with core/updater/self-test.sh." >&2
         exit 1
     fi
     echo "      lock.json regenerated" >&2

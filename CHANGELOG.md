@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ネットワークエラー時は常に exit 0 でセッションをブロックしない
 - `.claude/settings.json`: `SessionStart` フック登録、`auto_update_policy` デフォルト値
 - `core/` 技術的保護（`core/git-hooks/`）
-  - `commit-msg`: `core/` 配下の変更を検知し、公式アップデート（コミットメッセージ + `lock.json` ステージのセット判定）以外はブロック
+  - `commit-msg`: `core/` 配下の変更を検知し、公式アップデート（コミットメッセージ + `lock.json` ステージのセット判定）以外はブロック。`lock.json` 単体の変更（更新確認時刻の記録・セットアップ時の lock 生成）は許可
   - 有効化: `git config core.hooksPath core/git-hooks`
 - GitHub Actions CI
   - `release.yml`: `v*` タグ push で Release を作成し `checksums.txt` を添付。0.x 系は `--prerelease`

@@ -26,6 +26,9 @@ git config --unset core.hooksPath
    かつ `core/.agent-base-lock.json` がステージされている
 2. コミットメッセージが `chore: snapshot before agent-base update`
    （lock.json のステージは不要 — 更新前の dirty 状態を保存する安全ネットのため）
+3. ステージされた `core/` の変更が `core/.agent-base-lock.json` **のみ**
+   （`check-update.sh` の更新確認時刻の記録やセットアップ時の lock 生成のため。
+   lock 単独の改変は `self-test.sh` の hash 照合で検出できるため保護は維持されます）
 
 これらは `/core-update` または `apply-update.sh` による公式アップデートとして扱われます。
 

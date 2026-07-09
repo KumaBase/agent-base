@@ -48,9 +48,10 @@ Claude Code を使う場合、セッション開始時に自動的に新版の�
 GitHub Release には `checksums.txt` が添付され、以下の SHA256 を記録します:
 
 - ZIP アーカイブ全体
-- `core/` 配下の各ファイル
+- `core/` 配下の各ファイル（手動検証・監査用の参照情報）
 
-`apply-update.sh` は ZIP ダウンロード後に `checksums.txt` で検証します。
+`apply-update.sh` は ZIP ダウンロード後に **ZIP 全体の SHA256** を `checksums.txt` と照合します。
+ZIP の hash が一致すれば展開される中身も同一のため、個別ファイルの再検証は行いません。
 検証失敗時は更新を中止します。
 
 > **注意**: v0.0.1 には `checksums.txt` が添付されていません。v0.0.2 以降のみ検証対象です。

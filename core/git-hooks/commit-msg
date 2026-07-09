@@ -14,6 +14,9 @@
 #      かつ core/.agent-base-lock.json がステージされている
 #   2. コミットメッセージが "chore: snapshot before agent-base update" にマッチ
 #      （lock.json のステージは不要 — スナップショットは保護用の安全ネット）
+#   3. ステージされた core/ の変更が core/.agent-base-lock.json のみ
+#      （check-update.sh の時刻更新・セットアップ時の lock 生成が通常コミットに
+#        混ざるため。lock 単独の改変は self-test の hash 照合で検出できる）
 
 set -uo pipefail
 
@@ -24,6 +27,14 @@ STAGED_CORE="$(git diff --cached --name-only -- core/ 2>/dev/null)"
 
 if [[ -z "$STAGED_CORE" ]]; then
     # core/ 配下に変更なし → 許可
+    exit 0
+fi
+
+# core/ の変更が lock.json のみ → 許可
+# （check-update.sh が last_update_check_at を書き換える・セットアップが lock を
+#   生成するため、通常コミットに lock.json 単体が混ざるのは正常な運用。
+#   lock.json 単独の改変は core/ 実体との hash 不一致として self-test で検出される）
+if [[ "$STAGED_CORE" == "core/.agent-base-lock.json" ]]; then
     exit 0
 fi
 

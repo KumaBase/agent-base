@@ -123,7 +123,13 @@ if [[ $is_newer -eq 0 ]]; then
 fi
 
 # --- 新版あり。JSON を構築して出力 ---
-ZIP_URL="$(printf '%s' "$RELEASE_JSON" | github_extract_zip_url)"
+# zip_url は apply-update.sh の実ダウンロード対象と揃える:
+# release asset（checksums.txt の検証対象）を優先し、無ければ zipball へ
+# フォールバック。zipball は checksums.txt でカバーされない点に注意。
+ZIP_URL="$(printf '%s' "$RELEASE_JSON" | github_find_asset_url "agent-base-${LATEST_VERSION}.zip")"
+if [[ -z "$ZIP_URL" ]]; then
+    ZIP_URL="$(printf '%s' "$RELEASE_JSON" | github_extract_zip_url)"
+fi
 
 # release JSON を temp file に保存して html_url/name/body を抽出
 REL_TMP="$(mktemp)"

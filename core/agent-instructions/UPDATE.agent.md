@@ -51,7 +51,7 @@ Claude Code の場合、セッション開始時に `.claude/hooks/session-start
 
 1. （Git 有効時）スナップショットコミット作成: `chore: snapshot before agent-base update`
 2. 新版 ZIP をダウンロード
-3. **checksums.txt で完全性検証**（ZIP 全体 + core/ 内個別ファイル）
+3. **checksums.txt で完全性検証**（ZIP 全体の SHA256 を照合。ZIP の hash が一致すれば展開される中身も同一）
 4. ZIP を展開
 5. **`core/` サブツリーを丸ごと差し替え**（managed 領域なので安全）
 6. ルート雛形（`AGENTS.md`, `.cursor/rules/agent-base.mdc`, `GEMINI.md` 等）は 3-way 判定:
