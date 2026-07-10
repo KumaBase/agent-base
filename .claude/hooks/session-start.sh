@@ -167,7 +167,7 @@ fi
 # 「管理対象一覧にあるのに、実ファイルも lock 記録も無い」パスを検知したら、
 # 同タグでの再適用（新 updater が不足分を補完する）を案内する。
 INCOMPLETE_HINT=""
-if [[ "$rc" == "0" ]] && . "$UPDATER/lib/lock.sh" 2>/dev/null; then
+if [[ "$rc" == "0" || "$rc" == "10" ]] && . "$UPDATER/lib/lock.sh" 2>/dev/null; then
     CUR_VER="$(lock_get_version 2>/dev/null)"
     if [[ -n "$CUR_VER" && "$CUR_VER" != "null" ]]; then
         ROOT_LOCK_FILE="$(mktemp 2>/dev/null)"
@@ -176,7 +176,8 @@ if [[ "$rc" == "0" ]] && . "$UPDATER/lib/lock.sh" 2>/dev/null; then
         while IFS= read -r p; do
             [[ -z "$p" ]] && continue
             [[ -f "$WORKSPACE_ROOT/$p" ]] && continue
-            # lock に記録があるパスは対象外（過去に配置済み＝利用者の削除等）
+            # lock に記録があるパスは対象外（hash 記録=配置済み、
+            # "deleted" tombstone=利用者が意図的に削除）
             if awk -F '\t' -v x="$p" '$1==x{found=1; exit} END{exit !found}' "$ROOT_LOCK_FILE" 2>/dev/null; then
                 continue
             fi

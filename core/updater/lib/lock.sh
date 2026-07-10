@@ -178,6 +178,11 @@ lock_regenerate() {
 
     # root_template_hashes を構築
     # preserve_file に記載されたパスは旧 hash（未解決マージの baseline）を保持
+    # 旧 lock の記録は tombstone 判定に使う（再生成前に退避）
+    local old_root_file
+    old_root_file="$(mktemp)"
+    lock_get_root_template_hashes >"$old_root_file" 2>/dev/null
+
     local root_pairs="" p
     while IFS= read -r p; do
         [[ -z "$p" ]] && continue
@@ -191,7 +196,16 @@ lock_regenerate() {
             if [[ -f "$fp" ]]; then
                 h="$(hash_compute_sha256 "$fp" 2>/dev/null)" || continue
             else
-                continue
+                # ファイルが無い。旧 lock に記録があれば「利用者が意図的に削除した」
+                # とみなし tombstone（"deleted"）を記録する。これにより以後の更新で
+                # 復活させず、配布未完了チェック（session-start.sh）でも誤検知しない。
+                # 旧 lock にも記録が無ければ未配置（配布未完了）なので記録しない
+                # （session-start.sh が検知して再適用を案内できるようにする）
+                if awk -F '\t' -v path="$p" '$1 == path { found=1; exit } END { exit !found }' "$old_root_file" 2>/dev/null; then
+                    h="deleted"
+                else
+                    continue
+                fi
             fi
         fi
         if [[ -z "$root_pairs" ]]; then
@@ -200,6 +214,7 @@ lock_regenerate() {
             root_pairs+=$'\n'"${p}"$'\t'"${h}"
         fi
     done < <(lock_root_template_paths)
+    rm -f "$old_root_file"
     local root_json
     root_json="$(printf '%s\n' "$root_pairs" | _lock_build_json_object_from_pairs)"
 
