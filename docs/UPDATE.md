@@ -99,6 +99,20 @@ git config core.hooksPath core/git-hooks
 
 詳細は `core/git-hooks/README.md` 参照。
 
+## トラブルシューティング
+
+### 更新後、新機能のファイルが見当たらない
+
+新リリースで **新規追加** されたルート雛形（例: 新しい Claude Code Skill）は、更新を実行するのが **旧版の updater**（起動時に読み込んだ旧版の管理対象一覧で動く）のため、その更新では配置されないことがあります。
+
+次回セッション開始時にフックが検知して案内しますが、手動で補完する場合は同じバージョンを再適用してください:
+
+```bash
+core/updater/apply-update.sh --tag v{現在のバージョン}
+```
+
+新しい updater が不足分を配置し、lock に記録します（既存ファイルは変更されません）。
+
 ## 手順の詳細
 
 - AI 向け手順書: `core/agent-instructions/UPDATE.agent.md`

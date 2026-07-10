@@ -160,18 +160,60 @@ Do NOT block the user's current request. Do not press if the user has clearly de
     fi
 fi
 
+# --- 配布未完了の検知（新規 root template の取りこぼし）---
+# 旧版の updater で更新した直後は、そのリリースで新規追加された root template
+# が配置・lock 記録されないことがある（updater は起動時に読み込んだ旧版の
+# 管理対象一覧で動くため、修正は 1 バージョン遅れて届く）。
+# 「管理対象一覧にあるのに、実ファイルも lock 記録も無い」パスを検知したら、
+# 同タグでの再適用（新 updater が不足分を補完する）を案内する。
+INCOMPLETE_HINT=""
+if [[ "$rc" == "0" ]] && . "$UPDATER/lib/lock.sh" 2>/dev/null; then
+    CUR_VER="$(lock_get_version 2>/dev/null)"
+    if [[ -n "$CUR_VER" && "$CUR_VER" != "null" ]]; then
+        ROOT_LOCK_FILE="$(mktemp 2>/dev/null)"
+        lock_load_root_to_file "$ROOT_LOCK_FILE" 2>/dev/null
+        missing_paths=""
+        while IFS= read -r p; do
+            [[ -z "$p" ]] && continue
+            [[ -f "$WORKSPACE_ROOT/$p" ]] && continue
+            # lock に記録があるパスは対象外（過去に配置済み＝利用者の削除等）
+            if awk -F '\t' -v x="$p" '$1==x{found=1; exit} END{exit !found}' "$ROOT_LOCK_FILE" 2>/dev/null; then
+                continue
+            fi
+            missing_paths="${missing_paths}- $p
+"
+        done < <(lock_root_template_paths 2>/dev/null)
+        rm -f "$ROOT_LOCK_FILE"
+
+        if [[ -n "$missing_paths" ]]; then
+            INCOMPLETE_HINT="[AgentBase Distribution Incomplete]
+The following managed files are missing and not recorded in lock. This usually means the last update was performed by an older updater, which could not install files newly added in this release:
+${missing_paths}
+ACTION FOR AI: Suggest completing the installation by re-applying the current version (requires user approval):
+  core/updater/apply-update.sh --tag v${CUR_VER}
+If the user intentionally deleted these files, they can ignore this notice."
+        fi
+    fi
+fi
+
 # additionalContext を合成して出力
-if [[ -z "$ADDITIONAL" && -z "$GIT_HINT" ]]; then
+if [[ -z "$ADDITIONAL" && -z "$GIT_HINT" && -z "$INCOMPLETE_HINT" ]]; then
     exit 0
 fi
 
 COMBINED=""
-[[ -n "$ADDITIONAL" ]] && COMBINED="$ADDITIONAL"
-[[ -n "$ADDITIONAL" && -n "$GIT_HINT" ]] && COMBINED="$COMBINED
+SEP="
 
 ---
 "
-[[ -n "$GIT_HINT" ]] && COMBINED="$COMBINED$GIT_HINT"
+for part in "$ADDITIONAL" "$INCOMPLETE_HINT" "$GIT_HINT"; do
+    [[ -z "$part" ]] && continue
+    if [[ -z "$COMBINED" ]]; then
+        COMBINED="$part"
+    else
+        COMBINED="$COMBINED$SEP$part"
+    fi
+done
 
 # JSON 出力（jq 不要、printf + json_escape_string）
 if command -v json_escape_string >/dev/null 2>&1; then

@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - lock の `root_template_hashes` 管理対象に `.claude/skills/expert-team/SKILL.md` を追加（`lock.sh`, `SETUP.agent.md`）
+- `apply-update.sh`: `core/` 差し替え後に新版ライブラリを読み直し、root template の管理対象一覧を新版（展開物）から取得するよう修正。新リリースで追加された template の配置・lock 記録漏れを防止（v0.0.3 以降の updater が実行する更新で有効）
+- `session-start.sh`: 配布未完了（管理対象一覧にあるのに未配置・lock 未記録）の検知と、同タグ再適用の案内を追加
+- `/expert-team` Skill: 利用者定義の読み込みを作業文脈に該当する階層のみに限定（無関係なクライアント・プロジェクトの定義・機密の混入防止）
+
+### 注意（v0.0.2 からの更新）
+
+- v0.0.2 の updater で v0.0.3 へ更新した場合、新規追加の `.claude/skills/expert-team/SKILL.md` はその更新では配置されません（旧 updater は新しい管理対象一覧を知らないため）。次回セッション開始時にフックが検知して案内します。手動で補完する場合: `core/updater/apply-update.sh --tag v0.0.3`（詳細は `docs/UPDATE.md` トラブルシューティング）
 
 ## [0.0.2] - 2026-07-09
 
