@@ -51,6 +51,7 @@ AI エージェントが会社・顧客・案件・チーム・個人・タス�
 | 健康診断して | 中核領域（`core/`）の改変検出・修復 |
 | AgentBase を更新して | 新版の取り込み |
 | ルールを追加・変更して | `rules/` へのカスタマイズ |
+| 専門家チームを呼んで / 会議して | バーチャル専門家チームでの議論・レビュー |
 | 使い方を教えて | この案内 |
 
 #### d. 触ってよい場所 / 触らない場所
@@ -88,5 +89,6 @@ AI エージェントが会社・顧客・案件・チーム・個人・タス�
 - `core/agent-instructions/SELF_HEAL.agent.md`（健康診断）
 - `core/agent-instructions/UPDATE.agent.md`（更新）
 - `core/agent-instructions/CUSTOMIZE.agent.md`（ルール変更）
+- `core/agent-instructions/EXPERT_TEAM.agent.md`（バーチャル専門家チーム）
 - `README.md`（人間向けの一次ドキュメント）
 - `docs/RULE_LAYERS.md`（ルール階層の詳細）

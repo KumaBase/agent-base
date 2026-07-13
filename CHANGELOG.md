@@ -11,6 +11,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-07-10
+
+### Added
+
+- バーチャル専門家チーム機能
+  - `core/agent-instructions/EXPERT_TEAM.agent.md`: 依頼内容に応じて 3〜7 名の専門家役割を編成し、多視点の議論・レビュー・意思決定支援・成果物作成を行う AI 向け手順書。役割カタログ（中核専門家 / 実行視点 / 個人・生活視点 / 盲点発見視点）を収録
+  - `core/templates/expert-team-template.md`: 利用者が独自の専門家・既定編成・議論スタイルを `rules/` 側に定義するための雛形（`*_EXPERT_TEAM.md`）
+  - `.claude/skills/expert-team/SKILL.md`: Claude Code Slash Command `/expert-team`
+  - `core/runtime/AGENTS.md`: 実行ルールに起動条件（明示起動 / 自発提案）と「会議の結論は利用者の承認を代替しない」原則を追加
+  - ルート `AGENTS.md` の「AI に頼める操作」に「専門家チームを呼んで / 会議して」を追加
+  - 役割カタログのカスタマイズはルール全階層に対応（追加は全階層マージ・同名と競合は上位階層優先・disabled_roles は下位で強める方向のみ）
+- サブエージェント運用の司令塔原則（`core/runtime/AGENTS.md` §12）
+  - 利用者と直接会話するのは司令塔（PM / 管理者）1体のみ。重い処理はサブエージェントへ委譲し、司令塔が検証・統合して報告
+  - 承認の窓口は司令塔に一本化（サブエージェントは L3/L4 操作を直接実行しない）
+  - 専門家チームとの併用: 各専門家の意見出しをサブエージェントへ並列委譲可能（議長は司令塔）
+  - 作業委譲時の専門家召喚: 通常の委譲でもタスクに適した専門家役割をサブエージェントに与えて実行させる（例: 技術調査 → CTO）。適役がなければ役割なし（フラット）で委譲
+- コンテキスト・トークンの浪費防止（`core/runtime/AGENTS.md` §12 委譲の経済性・§13）
+  - 軽い作業は委譲しない / 委譲時は文脈・成果物形式・完了条件を最初にまとめて渡す / 往復は原則 1 回・3 往復超で設計見直し / 重複呼び出し禁止 / リトライは 1 回まで
+  - 一般原則: 再読・再実行の回避、長い出力の転記禁止、利用者への確認はまとめて 1 回、会議の意見出しは原則 1 巡
+
+### Changed
+
+- lock の `root_template_hashes` 管理対象に `.claude/skills/expert-team/SKILL.md` を追加（`lock.sh`, `SETUP.agent.md`）
+- `apply-update.sh`: `core/` 差し替え後に新版ライブラリを読み直し、root template の管理対象一覧を新版（展開物）から取得するよう修正。新リリースで追加された template の配置・lock 記録漏れを防止（v0.0.3 以降の updater が実行する更新で有効）
+- `session-start.sh`: 配布未完了（管理対象一覧にあるのに未配置・lock 未記録）の検知と、同タグ再適用の案内を追加。新版あり（exit 10）時にもチェックを実行
+- `lock_regenerate`: 利用者が削除した root template を tombstone（`"deleted"`）として lock に記録。更新での意図しない復活と、配布未完了チェックの誤検知を恒久的に防止
+- `/expert-team` Skill: 利用者定義の読み込みを作業文脈に該当する階層のみに限定（無関係なクライアント・プロジェクトの定義・機密の混入防止）
+
+### 注意（v0.0.2 からの更新）
+
+- v0.0.2 の updater で v0.0.3 へ更新した場合、新規追加の `.claude/skills/expert-team/SKILL.md` はその更新では配置されません（旧 updater は新しい管理対象一覧を知らないため）。次回セッション開始時にフックが検知して案内します。手動で補完する場合: `core/updater/apply-update.sh --tag v0.0.3`（詳細は `docs/UPDATE.md` トラブルシューティング）
+
 ## [0.0.2] - 2026-07-09
 
 ### Added

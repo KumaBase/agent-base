@@ -299,6 +299,24 @@ fi
 # --- 7. ルート雛形の 3-way マージ ---
 echo "[7/8] Checking root templates..." >&2
 
+# core/ 差し替え後は新版のライブラリを読み直す。起動時に source した旧版の
+# lock_root_template_paths のままだと、新リリースで追加された root template が
+# 配置も lock 記録もされない（lock_regenerate も旧一覧で記録してしまう）。
+# 注意: lib の関数 API は 1 バージョン差で後方互換を保つこと。
+if [[ $DRY_RUN -eq 0 ]]; then
+    # shellcheck source=lib/hash.sh
+    . "$SCRIPT_DIR/lib/hash.sh"
+    # shellcheck source=lib/lock.sh
+    . "$SCRIPT_DIR/lib/lock.sh"
+    # shellcheck source=lib/root-merge.sh
+    . "$SCRIPT_DIR/lib/root-merge.sh"
+fi
+
+# 管理対象一覧は新版（展開物）の定義から取得する。dry-run でも新規追加パスを
+# 正しくプレビューできる。取得できない場合は現行定義にフォールバック
+TEMPLATE_LIST="$(EXTR="$EXTRACTED_ROOT" bash -c '. "$EXTR/core/updater/lib/lock.sh" 2>/dev/null && lock_root_template_paths' 2>/dev/null)"
+[[ -n "$TEMPLATE_LIST" ]] || TEMPLATE_LIST="$(lock_root_template_paths)"
+
 # 現 lock の root_template_hashes を一時ファイルへ（旧 baseline 参照用）
 ROOT_HASHES_FILE="$TMPDIR_WORK/root_hashes.txt"
 lock_load_root_to_file "$ROOT_HASHES_FILE"
@@ -375,7 +393,7 @@ while IFS= read -r path; do
             # （例: 使わない AI ツールの入口ファイル）。更新時に復活させない
             ;;
     esac
-done < <(lock_root_template_paths)
+done <<< "$TEMPLATE_LIST"
 
 # --- 8. lock 再生成 + コミット ---
 echo "[8/8] Regenerating lock and committing..." >&2
@@ -399,7 +417,7 @@ if [[ $DRY_RUN -eq 0 ]]; then
         #   template は旧 lock に無いため、旧 lock 基準だとコミット漏れになる）
         while IFS= read -r path; do
             [[ -n "$path" && -f "$WORKSPACE_ROOT/$path" ]] && git add -- "$path" 2>/dev/null || true
-        done < <(lock_root_template_paths)
+        done <<< "$TEMPLATE_LIST"
         if git commit -m "chore: update agent-base to $TAG" >/dev/null 2>&1; then
             COMMITTED=1
             echo "      Committed: chore: update agent-base to $TAG" >&2

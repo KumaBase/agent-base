@@ -91,6 +91,7 @@ AI エージェント向け指示書。利用者が展開フォルダを開い�
 - `.claude/settings.json`（Claude Code 設定・hooks 登録）
 - `.claude/hooks/session-start.sh`（セッション開始時フック）
 - `.claude/skills/core-update/SKILL.md`（`/core-update` Skill）
+- `.claude/skills/expert-team/SKILL.md`（`/expert-team` Skill）
 
 lock の形式:
 

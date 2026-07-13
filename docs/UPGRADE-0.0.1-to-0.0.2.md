@@ -138,6 +138,7 @@ git config --unset core.hooksPath   # フックを無効化する場合
 
 ## トラブルシューティング
 
+- **その後の更新で新しい Skill 等が見当たらない** → 同じバージョンを再適用する（`core/updater/apply-update.sh --tag v{バージョン}`）。詳細は `docs/UPDATE.md` のトラブルシューティング
 - **self-test が不一致を報告する** → `core/` の差し替え漏れか lock 再生成ミス。手順 3・6 をやり直す
 - **セッション開始時の更新チェックが動かない** → `.claude/hooks/session-start.sh` の実行権限と `.claude/settings.json` の hooks 登録を確認
 - **困ったら** → AI に「健康診断して」と依頼（`core/agent-instructions/SELF_HEAL.agent.md`）
